@@ -6,6 +6,7 @@ import { imageUrl, ListError } from "../lib/net";
 import { inProgress, watched, type Progress } from "../lib/storage";
 import type { CatalogItem, Episode, Playable } from "../lib/types";
 import type { TitleInfo, Xtream } from "../lib/xtream";
+import { cleanLabel } from "./Rail";
 import { Art, Button, Spinner } from "./ui";
 
 export const clock = (seconds: number) => {
@@ -115,13 +116,13 @@ export function Detail({
           <div className="absolute inset-0 bg-linear-to-t from-canvas via-canvas/75 to-canvas/10" />
           <div className="absolute inset-0 bg-linear-to-r from-canvas/70 to-transparent" />
         </div>
-        <button type="button" onClick={onBack} aria-label="Voltar" className="absolute top-3 left-3 grid size-10 place-items-center rounded-full border-2 border-line bg-panel/80 text-ink backdrop-blur-md transition hover:bg-surface-hi">
+        <button type="button" onClick={onBack} aria-label="Voltar" className="absolute top-4 left-6 grid size-10 lg:left-8 place-items-center rounded-full border-2 border-line bg-panel/80 text-ink backdrop-blur-md transition hover:bg-surface-hi">
           <ArrowLeft className="size-4" />
         </button>
-        <div className="flex items-end gap-5 px-5 pt-16 pb-5 sm:px-7">
+        <div className="flex items-end gap-6 px-6 pt-16 pb-6 lg:px-8">
           <Art kind={item.kind} name={item.name} src={poster} year={year} shape="poster" className={`aspect-[2/3] rounded-md border-2 border-line shadow-float ${compact ? "w-24" : "w-28 sm:w-40"}`} />
           <div className="min-w-0 flex-1">
-            <p className="type-label text-accent-hi">{series ? "Série" : "Filme"} · {item.group}</p>
+            <p className="type-label text-accent-hi">{series ? "Série" : "Filme"} · {cleanLabel(item.group)}</p>
             <h1 className={`mt-1.5 font-display leading-[1.05] font-extrabold tracking-[-0.02em] text-balance ${compact ? "text-2xl" : "text-[28px] sm:text-[40px]"}`}>{item.name.replace(/\s*\((19|20)\d{2}\)\s*$/, "")}</h1>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {year && <span className={chip}>{year}</span>}
@@ -164,7 +165,7 @@ export function Detail({
         </div>
       </div>
 
-      <div className="flex flex-col gap-5 px-5 pb-8 sm:px-7">
+      <div className="flex flex-col gap-6 px-6 pb-10 lg:px-8">
         {plot && <p className="max-w-3xl text-[15px] leading-relaxed text-ink/85">{plot}</p>}
         {(info?.director || info?.cast) && (
           <dl className="grid max-w-3xl gap-1.5 text-sm">

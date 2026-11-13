@@ -119,7 +119,7 @@ export function Sidebar({
 
       {categories && !collapsed ? (
         <div className="flex min-h-0 flex-1 flex-col border-t-2 border-line">
-          <div className="type-label flex items-center justify-between px-5 pt-4 pb-2 text-soft/80">
+          <div className="type-label flex items-center justify-between px-5.5 pt-4 pb-2 text-soft/80">
             <span>Categorias</span>
             <span className="tabular-nums">{fmt(section.groups.length)}</span>
           </div>

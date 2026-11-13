@@ -80,7 +80,7 @@ export function NowPlaying({
 }) {
   const { hosting, following, broadcast, audience } = together;
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-t-2 border-line bg-panel px-3 py-2.5 sm:flex-row sm:items-center">
+    <div className="flex shrink-0 flex-col gap-2 border-t-2 border-line bg-panel px-4 py-3 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Art kind={play.live ? "live" : "movie"} name={play.title} src={play.logo} shape={play.live ? "logo" : "poster"} className={`rounded-sm border-2 border-line ${play.live ? "size-12" : "h-14 w-10"}`} />
         <div className="min-w-0 flex-1">

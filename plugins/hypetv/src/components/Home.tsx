@@ -38,7 +38,7 @@ function Rail({ title, icon: Icon, children, loading }: { title: string; icon: t
   const arrow = "absolute top-[calc(50%-1.25rem)] z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border-2 border-line bg-panel/95 text-ink shadow-float backdrop-blur-md transition hover:bg-surface-hi disabled:pointer-events-none disabled:opacity-0";
   const mask = `linear-gradient(to right, ${edges.start ? "black" : "transparent"} 0, black 40px, black calc(100% - 40px), ${edges.end ? "black" : "transparent"} 100%)`;
   return (
-    <section className="group/rail flex flex-col gap-3 px-5 sm:px-7">
+    <section className="group/rail flex shrink-0 flex-col gap-3 px-6 lg:px-8">
       <h2 className="flex items-center gap-2 font-display text-lg font-extrabold tracking-[-0.01em]">
         <Icon className="size-5 text-accent-hi" /> {title}
         {loading && <Spinner className="size-4 text-soft" />}
@@ -150,7 +150,7 @@ function Hero({ item, xtream, onOpen, onPlay }: { item: CatalogItem; xtream?: Xt
   const poster = info?.poster ?? item.logo;
   const rating = info?.rating ?? (Number(item.info?.rating) || undefined);
   return (
-    <section className="relative isolate mx-5 flex min-h-[clamp(240px,34vh,360px)] animate-fade-in flex-col justify-end overflow-hidden rounded-xl border-2 border-line shadow-float sm:mx-7">
+    <section className="relative isolate mx-6 flex min-h-[clamp(240px,34vh,360px)] shrink-0 animate-fade-in flex-col justify-end overflow-hidden rounded-xl border-2 border-line shadow-float lg:mx-8">
       <div className="absolute inset-0 -z-10 bg-surface">
         {backdrop ? (
           <img src={imageUrl(backdrop, "w1280")} alt="" className="size-full object-cover" />
@@ -164,10 +164,10 @@ function Hero({ item, xtream, onOpen, onPlay }: { item: CatalogItem; xtream?: Xt
         <img
           src={imageUrl(poster, "w342")}
           alt=""
-          className="absolute top-1/2 right-8 hidden aspect-[2/3] w-36 -translate-y-1/2 rotate-2 rounded-md border-2 border-line object-cover shadow-float md:block lg:w-44"
+          className="absolute top-1/2 right-8 hidden aspect-[2/3] w-40 -translate-y-1/2 rotate-2 rounded-md border-2 border-line object-cover shadow-float lg:block xl:w-44"
         />
       )}
-      <div className="flex max-w-xl flex-col gap-3 p-6 sm:p-8 md:pr-56">
+      <div className="flex max-w-2xl flex-col gap-3 p-6 sm:p-8 lg:pr-64">
         <span className="type-label text-accent-hi">Novo na lista</span>
         <h2 className="font-display text-[30px] leading-[1.05] font-extrabold tracking-[-0.02em] text-balance sm:text-[38px]">{item.name.replace(/\s*\((19|20)\d{2}\)\s*$/, "")}</h2>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-ink/85">
@@ -275,7 +275,7 @@ export function Home({
         </Rail>
       )}
       {nothing && !loading.length && (
-        <div className="mx-5 grid place-items-center rounded-xl border-2 border-dashed border-line p-10 text-center sm:mx-7">
+        <div className="mx-6 grid shrink-0 place-items-center rounded-xl border-2 border-dashed border-line p-10 text-center lg:mx-8">
           <Tv className="size-8 text-accent-hi" />
           <p className="mt-3 font-display text-lg font-extrabold">Comece por um canal</p>
           <p className="mt-1 max-w-sm text-sm text-soft">O que você assistir, favoritar e começar a ver aparece aqui.</p>
@@ -315,11 +315,11 @@ export function Collection({
   ].filter((g) => of(g.kind).length);
   return (
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto py-6">
-      <h1 className="flex items-center gap-3 px-5 font-display text-[28px] font-extrabold tracking-[-0.02em] sm:px-7">
+      <h1 className="flex shrink-0 items-center gap-3 px-6 font-display text-[28px] font-extrabold tracking-[-0.02em] lg:px-8">
         {title} {loading.length > 0 && <Spinner className="size-5 text-soft" />}
       </h1>
       {groups.map(({ kind, label, icon: Icon }) => (
-        <section key={kind} className="flex flex-col gap-3 px-5 sm:px-7">
+        <section key={kind} className="flex shrink-0 flex-col gap-3 px-6 lg:px-8">
           <h2 className="flex items-center gap-2 font-display text-lg font-extrabold">
             <Icon className="size-5 text-accent-hi" /> {label}
           </h2>
@@ -334,7 +334,7 @@ export function Collection({
           </div>
         </section>
       ))}
-      {!groups.length && !loading.length && <p className="px-5 text-sm text-soft sm:px-7">{empty}</p>}
+      {!groups.length && !loading.length && <p className="shrink-0 px-6 text-sm text-soft lg:px-8">{empty}</p>}
     </div>
   );
 }

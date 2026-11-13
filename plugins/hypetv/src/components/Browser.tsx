@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { ALL, FAVORITES, filterItems, RECENTS } from "../lib/library";
 import { inProgress, type Progress } from "../lib/storage";
 import { KIND_LABEL, type CatalogItem, type Kind, type Section } from "../lib/types";
+import { titleOf } from "./Home";
 import { cleanLabel } from "./Rail";
 import { Art, Button, Spinner } from "./ui";
 import { VirtualGrid } from "./VirtualGrid";
@@ -95,13 +96,13 @@ export function Browser(props: BrowserProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
-      <div className={`flex min-w-0 flex-1 flex-col gap-3 pt-4 ${posters ? "pl-5" : "pl-3"}`}>
+      <div className={`flex min-w-0 flex-1 flex-col gap-3 pt-5 ${posters ? "pl-6 lg:pl-8" : "pl-3.5 lg:pl-5.5"}`}>
         {select && (
           <select
             value={group}
             onChange={(e) => onGroup(e.target.value)}
             aria-label="Categoria"
-            className="type-link-sm mr-4 h-10 shrink-0 rounded-full border-2 border-line bg-surface px-4 text-ink outline-none focus:border-accent"
+            className="type-link-sm mr-6 h-10 shrink-0 rounded-full border-2 border-line bg-surface px-4 text-ink outline-none focus:border-accent"
           >
             {special.map(({ name, count }) => (
               <option key={name} value={name}>
@@ -116,7 +117,7 @@ export function Browser(props: BrowserProps) {
             ))}
           </select>
         )}
-        <div className="flex items-baseline gap-3 pr-5">
+        <div className={`flex items-baseline gap-3 pr-6 ${posters ? "" : "pl-2.5"}`}>
           <h2 className="min-w-0 truncate font-display text-[22px] font-extrabold tracking-[-0.01em]">{query.trim() ? `Busca por “${query.trim()}”` : cleanLabel(groupLabel(effectiveGroup))}</h2>
           <span className="shrink-0 text-sm text-soft tabular-nums">{items.length.toLocaleString("pt-BR")} {kind === "live" ? "canais" : kind === "movie" ? "filmes" : "séries"}</span>
         </div>
@@ -190,7 +191,7 @@ function PosterCard({ item, progress, favorite, playing, onPick, onFavorite }: {
         )}
       </div>
       <div className="min-w-0 px-0.5">
-        <p className="truncate text-[13px] leading-tight font-semibold">{item.name}</p>
+        <p className="truncate text-[13px] leading-tight font-bold">{titleOf(item.name)}</p>
         <p className="truncate text-[11px] text-soft">{meta || cleanLabel(item.group)}</p>
       </div>
     </div>

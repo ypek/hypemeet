@@ -39,8 +39,8 @@ export function SearchResults({
   const total = SECTIONS.reduce((n, { kind }) => n + results[kind].length, 0);
 
   return (
-    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-5 py-6 sm:px-7">
-      <div className="flex items-baseline gap-3">
+    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-6 py-6 lg:px-8">
+      <div className="flex shrink-0 items-baseline gap-3">
         <h1 className="min-w-0 truncate font-display text-[28px] font-extrabold tracking-[-0.02em]">“{query}”</h1>
         <span className="shrink-0 text-sm text-soft">{total.toLocaleString("pt-BR")} resultados</span>
         {loading.length > 0 && <Spinner className="size-4 shrink-0 text-soft" />}
@@ -48,7 +48,7 @@ export function SearchResults({
       {SECTIONS.filter(({ kind }) => results[kind].length).map(({ kind, label, icon: Icon }) => {
         const all = results[kind];
         return (
-          <section key={kind} className="flex flex-col gap-3">
+          <section key={kind} className="flex shrink-0 flex-col gap-3">
             <div className="flex items-center gap-2">
               <h2 className="flex items-center gap-2 font-display text-lg font-extrabold">
                 <Icon className="size-5 text-accent-hi" /> {label}
@@ -73,7 +73,7 @@ export function SearchResults({
         );
       })}
       {!total && !loading.length && (
-        <div className="grid place-items-center gap-2 py-16 text-center text-soft">
+        <div className="grid shrink-0 place-items-center gap-2 py-16 text-center text-soft">
           <SearchX className="size-8 text-accent-hi" />
           <p className="font-display text-lg font-extrabold text-ink">Nada com esse nome</p>
           <p className="text-sm">Tente outra palavra, ou só uma parte do nome.</p>
