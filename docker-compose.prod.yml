@@ -38,6 +38,11 @@ services:
       HYPETV_HOSTS: ${HYPETV_HOSTS:-}
       HYPETV_MAX_STREAMS: ${HYPETV_MAX_STREAMS:-40}
       HYPETV_LISTS: ${HYPETV_LISTS:-}
+      # Films are downloaded once and shared by the room (plugins/hypetv/server/vodcache.ts).
+      HYPETV_CACHE_DIR: /cache
+      HYPETV_CACHE_GB: ${HYPETV_CACHE_GB:-20}
+    volumes:
+      - hypetv-cache:/cache
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -62,3 +67,4 @@ services:
 
 volumes:
   hypemeet-data:
+  hypetv-cache:
