@@ -310,7 +310,7 @@ async function serveStatic(pathname: string): Promise<Response> {
 const server = Bun.serve({
   port: PORT,
   // Seconds without a byte either way before Bun drops the connection; a slow panel building a big list can take a while.
-  idleTimeout: 120,
+  idleTimeout: 255,
   async fetch(req) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
