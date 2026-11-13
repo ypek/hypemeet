@@ -4,7 +4,7 @@
  *
  *   /live/demo/demo/<id>.m3u8  → a public HLS test stream
  *   /live/demo/demo/<id>.ts    → the same stream as continuous MPEG-TS (its segments in a loop), like a panel
- *   /movie|series/demo/demo/<id>.mp4 → a public MP4
+ *   /movie|series/demo/demo/<id>.mp4 → a public MP4 (every tenth one: gone, its CDN answers 404)
  *
  * In dev the plugin's relay accepts localhost, so add it as an Xtream list with server http://localhost:5176.
  */
@@ -152,12 +152,15 @@ const server = Bun.serve({
   fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/player_api.php") return Response.json(api(url.searchParams));
+    if (url.pathname === "/cdn/gone.mp4") return new Response("<!doctype html><html><body>404 Not Found</body></html>", { status: 404, headers: { "content-type": "text/html" } });
     const m = /^\/(live|movie|series)\/([^/]+)\/([^/]+)\/(\d+)\.(\w+)$/.exec(url.pathname);
     if (!m) return new Response("not found", { status: 404 });
     const [, kind, user, pass, id, ext] = m;
     if (user !== USER || pass !== PASS) return new Response("<html>INVALID_CREDENTIALS</html>", { headers: { "content-type": "text/html" } });
     if (kind === "live" && ext === "m3u8") return Response.redirect(HLS, 302);
     if (kind === "live") return new Response(tsLoop(req.signal), { headers: { "content-type": "video/mp2t" } });
+    // Like real panels: every tenth film is listed but gone from the CDN it redirects to.
+    if (Number(id) % 10 === 0) return Response.redirect(`http://localhost:${PORT}/cdn/gone.mp4`, 302);
     return Response.redirect(MP4[Number(id) % MP4.length]!, 302);
   },
 });

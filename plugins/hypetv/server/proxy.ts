@@ -144,6 +144,17 @@ async function follow(url: URL, init: { headers: Headers; signal: AbortSignal; m
   throw new BlockedError("Redirecionamentos demais");
 }
 
+/**
+ * An IPTV server's error answer to a film or channel, as the viewer should read it. The panel's own page says
+ * nothing a player can show, and a video element only reports "unsupported source" for it.
+ */
+export function streamErrorReason(status: number): string {
+  if (status === 404 || status === 410) return `Esse vídeo não está mais no servidor da lista (HTTP ${status})`;
+  if (status === 401 || status === 403) return `O servidor da lista recusou esse vídeo (HTTP ${status})`;
+  if (status === 429 || status === 509) return `Limite de conexões da lista atingido (HTTP ${status})`;
+  return `O servidor da lista respondeu HTTP ${status}`;
+}
+
 export function looksLikeHls(contentType: string | null, url: URL): boolean {
   const type = (contentType ?? "").toLowerCase();
   return type.includes("mpegurl") || /\.m3u8$/i.test(url.pathname);

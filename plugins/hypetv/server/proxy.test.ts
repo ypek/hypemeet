@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertPublic, BlockedError, fetchPublic, hostAllowed, isPrivateAddress, isTransient, rewriteHls, upstreamHeaders } from "./proxy";
+import { assertPublic, BlockedError, fetchPublic, hostAllowed, isPrivateAddress, isTransient, rewriteHls, streamErrorReason, upstreamHeaders } from "./proxy";
 
 test("private, loopback and link-local addresses are refused", () => {
   for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.0.10", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "224.0.0.1"])
@@ -96,4 +96,13 @@ test("fetchPublic: tries the way again after a DNS hiccup, and the error names t
   } finally {
     globalThis.fetch = real;
   }
+});
+
+test("an error answer to a film or channel: what the viewer reads instead of the panel's page", () => {
+  // A film the panel lists but its CDN no longer has (seen: zonalivebox answering 404 for whole films).
+  expect(streamErrorReason(404)).toBe("Esse vídeo não está mais no servidor da lista (HTTP 404)");
+  expect(streamErrorReason(410)).toBe("Esse vídeo não está mais no servidor da lista (HTTP 410)");
+  expect(streamErrorReason(403)).toBe("O servidor da lista recusou esse vídeo (HTTP 403)");
+  expect(streamErrorReason(429)).toBe("Limite de conexões da lista atingido (HTTP 429)");
+  expect(streamErrorReason(500)).toBe("O servidor da lista respondeu HTTP 500");
 });

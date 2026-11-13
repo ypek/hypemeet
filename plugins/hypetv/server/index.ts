@@ -18,7 +18,7 @@ import { createFanout } from "./fanout";
 import { createVodCache, isVodUrl } from "./vodcache";
 import { catalogKey, createCatalogCache } from "./catalogcache";
 import { parseLists, publicLists, scrubLogin, upstreamFor } from "./lists";
-import { BlockedError, fetchPublic, looksLikeHls, rewriteHls, upstreamHeaders, type ProxyPolicy } from "./proxy";
+import { BlockedError, fetchPublic, looksLikeHls, rewriteHls, streamErrorReason, upstreamHeaders, type ProxyPolicy } from "./proxy";
 
 const PRODUCTION = process.env.NODE_ENV === "production";
 const PORT = Number(process.env.PORT ?? (PRODUCTION ? 3002 : 5175));
@@ -127,6 +127,9 @@ function relayUrl(absolute: string, params: URLSearchParams): string {
   return `stream?${next}`;
 }
 
+/** An upstream error status worth telling the player about (416 keeps its Content-Range for the browser instead). */
+const isRefusal = (status: number) => status >= 400 && status !== 416;
+
 /** A slot under MAX_STREAMS, or null when full; the release is safe to call more than once. */
 function takeSlot(): (() => void) | null {
   if (streams >= MAX_STREAMS) return null;
@@ -151,14 +154,21 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
     release();
   }
   if (vodCache && !shared && isVodUrl(url)) {
+    // The panel's answer when it isn't a file to keep: an error is said right away, not fetched a second time below.
+    let refused = 0;
     try {
       const cached = await vodCache.serve(
         req,
         key,
-        async (signal) => (await fetchPublic(url, { headers: upstreamHeaders(params, null), signal, retries: 2 }, policy)).response,
+        async (signal) => {
+          const { response } = await fetchPublic(url, { headers: upstreamHeaders(params, null), signal, retries: 2 }, policy);
+          if (isRefusal(response.status)) refused = response.status;
+          return response;
+        },
         CORS,
       );
       if (cached) return cached;
+      if (refused) return fail(streamErrorReason(refused), refused);
     } catch (err) {
       return failure(err, url);
     }
@@ -176,6 +186,12 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
   }
   const { response } = upstream;
   const type = response.headers.get("content-type");
+  // An error page in place of the video (a film the panel lists but its CDN no longer has, say): its reason as JSON,
+  // which the player reads (engine.ts whyNot) and shows, instead of the page.
+  if (isRefusal(response.status)) {
+    await response.body?.cancel().catch(() => undefined);
+    return fail(streamErrorReason(response.status), response.status);
+  }
 
   if (response.ok && looksLikeHls(type, upstream.url)) {
     const body = response.body ? await readCapped(response.body, MAX_HLS).catch(() => null) : null;
