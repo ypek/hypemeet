@@ -50,10 +50,13 @@ export function createCatalogCache({ freshMs, maxAgeMs, now = Date.now }: { fres
   };
 }
 
-/** The key: the call without the login placeholders (username/password are "-" for server lists anyway). */
+/**
+ * The key: only what changes the answer (the call and its category). Anything else in the URL is ignored, so random
+ * parameters can't make the server fetch the panel again or keep one more copy in memory.
+ */
 export function catalogKey(listId: string, params: URLSearchParams): string | null {
   const action = params.get("action");
   if (!action || !CACHED_ACTIONS.has(action)) return null;
-  const rest = [...params].filter(([k]) => k !== "username" && k !== "password").sort(([a], [b]) => a.localeCompare(b));
-  return `${listId}?${new URLSearchParams(rest)}`;
+  const category = params.get("category_id");
+  return `${listId}?action=${action}${category && /^\d{1,10}$/.test(category) ? `&category_id=${category}` : ""}`;
 }

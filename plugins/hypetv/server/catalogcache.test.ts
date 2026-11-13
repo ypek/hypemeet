@@ -44,6 +44,9 @@ test("catalog cache: error pages and failures aren't kept", async () => {
 test("catalog key: only the big calls, without the login", () => {
   expect(catalogKey("1", new URLSearchParams("username=-&password=-&action=get_vod_streams"))).toBe("1?action=get_vod_streams");
   expect(catalogKey("1", new URLSearchParams("action=get_vod_streams&category_id=7&username=x"))).toBe("1?action=get_vod_streams&category_id=7");
+  // Anything else doesn't make a new copy (no fetching the panel again by changing the URL).
+  expect(catalogKey("1", new URLSearchParams("action=get_vod_streams&n=0.123&x=1"))).toBe("1?action=get_vod_streams");
+  expect(catalogKey("1", new URLSearchParams("action=get_vod_streams&category_id=abc"))).toBe("1?action=get_vod_streams");
   expect(catalogKey("1", new URLSearchParams("action=get_short_epg&stream_id=1"))).toBeNull();
   expect(catalogKey("1", new URLSearchParams("username=-&password=-"))).toBeNull();
 });
