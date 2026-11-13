@@ -1,4 +1,4 @@
-import { Search, Tv, X } from "lucide-react";
+import { Radio, Search, Tv, X } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AddPlaylist } from "./components/AddPlaylist";
 import { Browser } from "./components/Browser";
@@ -223,8 +223,18 @@ export function App() {
     setActiveId(next[0]?.id ?? null);
   };
 
-  const [root, { width }] = useSize<HTMLDivElement>();
+  const [root, { width, height }] = useSize<HTMLDivElement>();
   const layout = width >= 1080 ? "wide" : width >= 700 ? "medium" : "narrow";
+
+  // Cinema mode: the picture takes the whole plugin. On by itself when something starts in a small or short space
+  // (a room tile), off when nothing plays; T or the button toggles it, Esc leaves.
+  const [theater, setTheater] = useState(false);
+  const smallArea = layout === "narrow" || (height > 0 && height < 560);
+  const playingUrl = now?.play.url;
+  useEffect(() => {
+    if (!playingUrl) setTheater(false);
+    else if (smallArea) setTheater(true);
+  }, [playingUrl]);
   const inRoom = host.status === "room";
   const invite = together.broadcast && !together.hosting && !together.following ? together.broadcast : null;
   const showPlayer = !!now || (layout !== "narrow" && view === "live" && !detail);
@@ -445,7 +455,7 @@ export function App() {
 
           {showPlayer && (
             <section className={`flex min-h-0 min-w-0 flex-col ${layout === "narrow" ? "order-1 shrink-0" : "flex-1"}`}>
-              <div className={`relative min-h-0 ${layout === "narrow" ? "aspect-video max-h-[42vh] w-full" : "flex-1"}`}>
+              <div className={theater && now ? "fixed inset-0 z-40 bg-black" : `relative min-h-0 ${layout === "narrow" ? "aspect-video max-h-[58vh] w-full" : "flex-1"}`}>
                 <Player
                   play={now?.play ?? null}
                   handle={handle}
@@ -456,6 +466,8 @@ export function App() {
                   onProgress={(t, d) => now?.key && setProgress(saveProgress(active.id, now.key, t, d, now.play, now.owner))}
                   onZap={now?.play.live ? zap : undefined}
                   onStall={() => setStalls((s) => [...s.slice(-9), Date.now()])}
+                  theater={theater && !!now}
+                  onTheater={now ? setTheater : undefined}
                   panel={
                     now?.play.live && zapList.length
                       ? (close) => (
@@ -472,9 +484,16 @@ export function App() {
                   }
                   actions={
                     now && (
+                      <>
+                      {theater && inRoom && !together.hosting && !together.following && (
+                        <button type="button" onClick={() => together.pass(now.play)} aria-label="Passar pra sala" title="Passar pra sala" className="grid size-9 shrink-0 place-items-center rounded-full text-ink transition hover:bg-white/15">
+                          <Radio className="size-4" />
+                        </button>
+                      )}
                       <button type="button" onClick={closePlayer} aria-label="Fechar o player" title="Fechar o player" className="grid size-9 shrink-0 place-items-center rounded-full text-ink transition hover:bg-white/15">
                         <X className="size-4" />
                       </button>
+                      </>
                     )
                   }
                 />
@@ -484,7 +503,7 @@ export function App() {
                   </div>
                 )}
               </div>
-              {now && (
+              {now && !theater && (
                 <NowPlaying
                   play={now.play}
                   guide={guide}

@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, Volume1, Volume2, VolumeX } from "lucide-react";
+import { AlertTriangle, ChevronRight, Maximize, Minimize, Pause, PictureInPicture2, Play, RectangleHorizontal, RotateCcw, Shrink, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { attach, attemptsFor, type Attached } from "../lib/engine";
 import { loadVolume, saveVolume } from "../lib/storage";
@@ -76,6 +76,8 @@ export function Player({
   onZap,
   panel,
   onStall,
+  theater = false,
+  onTheater,
 }: {
   play: Playable | null;
   handle: PlayerHandle;
@@ -94,6 +96,9 @@ export function Player({
   onZap?: (delta: -1 | 1) => void;
   /** Live ran out of buffer (a slow connection, a struggling channel). */
   onStall?: () => void;
+  /** Cinema mode: the picture fills the whole plugin, everything else out of the way. */
+  theater?: boolean;
+  onTheater?: (on: boolean) => void;
   /** IPTVnator's fullscreen channel panel: the list beside the picture, toggled with C. */
   panel?: (close: () => void) => ReactNode;
 }) {
@@ -328,6 +333,8 @@ export function Player({
     else if (k === "pagedown" && onZap) onZap(1);
     else if (k === "c" && panel) setPanelOpen((o) => !o);
     else if (k === "escape" && panelOpen) setPanelOpen(false);
+    else if (k === "escape" && theater && onTheater) onTheater(false);
+    else if (k === "t" && onTheater) onTheater(!theater);
     else return;
     e.preventDefault();
     poke();
@@ -393,7 +400,7 @@ export function Player({
       )}
 
       {/* Full screen: what's on, top left (IPTVnator's title overlay). */}
-      {play && fullscreen && showControls && (
+      {play && (fullscreen || theater) && showControls && (
         <div className="pointer-events-none absolute top-4 left-4 z-20 flex max-w-[60%] animate-fade-in flex-col rounded-md bg-scrim px-3.5 py-2 backdrop-blur-md">
           <span className="truncate font-display text-lg font-extrabold">{play.title}</span>
           {play.subtitle && <span className="truncate text-xs text-soft">{play.subtitle}</span>}
@@ -484,6 +491,17 @@ export function Player({
             )}
             <span className="min-w-0 flex-1" />
             {actions}
+            {onTheater && (
+              <button
+                type="button"
+                onClick={() => onTheater(!theater)}
+                aria-label={theater ? "Sair do modo cinema" : "Modo cinema"}
+                title={theater ? "Sair do modo cinema (T)" : "Modo cinema (T)"}
+                className={control}
+              >
+                {theater ? <Shrink className="size-4" /> : <RectangleHorizontal className="size-4" />}
+              </button>
+            )}
             {document.pictureInPictureEnabled && (
               <button type="button" onClick={pip} aria-label="Janela flutuante" title="Janela flutuante" className={control}>
                 <PictureInPicture2 className="size-4" />
