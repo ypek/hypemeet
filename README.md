@@ -178,8 +178,9 @@ dele em `PLUGINS`), porque o servidor dele carrega os streams:
 - **Proxy:** listas, API Xtream e streams passam por ele (os painéis não mandam CORS e quase todos são HTTP).
   Só vai a endereços públicos, conferindo cada redirecionamento; `HYPETV_HOSTS` restringe aos hosts listados e
   `HYPETV_MAX_STREAMS` limita os streams abertos.
-- **Um canal, uma conexão:** um canal ao vivo em MPEG-TS é repartido entre todo mundo da sala que está nele,
-  então listas que só aceitam 1 conexão funcionam pra sala inteira. Filmes abrem uma conexão por pessoa.
+- **Um canal ou filme, uma conexão:** um canal ao vivo em MPEG-TS é repartido entre todo mundo da sala que
+  está nele, e um filme é baixado uma vez pro disco do serviço e servido dali pra cada um (com pausa e avanço
+  próprios), então listas que só aceitam 1 conexão funcionam pra sala inteira.
 - **Logos e capas:** logo oficial dos canais pelo [tv-logos](https://github.com/tv-logo/tv-logos) (via
   jsDelivr) e pelo [iptv-org](https://github.com/iptv-org/database), e a Wikipedia pro resto; capas de filmes e
   séries pelo TMDB (`TMDB_API_KEY`, opcional) ou pela Wikipedia. Imagens de hosts que bloqueiam hotlink (imgur)

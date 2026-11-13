@@ -13,7 +13,9 @@
  */
 import { join, normalize } from "node:path";
 import { createArt, type ArtKind } from "./art";
+import { tmpdir } from "node:os";
 import { createFanout } from "./fanout";
+import { createVodCache, isVodUrl } from "./vodcache";
 import { parseLists, publicLists, scrubLogin, upstreamFor } from "./lists";
 import { BlockedError, fetchPublic, looksLikeHls, rewriteHls, upstreamHeaders, type ProxyPolicy } from "./proxy";
 
@@ -108,6 +110,9 @@ async function fetchText(req: Request, params: URLSearchParams): Promise<Respons
 
 let streams = 0;
 const fanout = createFanout();
+/** Films and episodes: one download per file, shared by the room (vodcache.ts). HYPETV_CACHE_GB=0 turns it off. */
+const VOD_CACHE_GB = Number(process.env.HYPETV_CACHE_GB ?? 20);
+const vodCache = VOD_CACHE_GB > 0 ? createVodCache(process.env.HYPETV_CACHE_DIR ?? join(tmpdir(), "hypetv-cache"), VOD_CACHE_GB * 1024 ** 3) : null;
 
 /** Relative to the request (…/api/stream?…), so it holds under Discord's /plugins/hypetv/ proxy too. */
 function relayUrl(absolute: string, params: URLSearchParams): string {
@@ -141,6 +146,19 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
     const joined = fanout.tryJoin(key, release);
     if (joined) return joined;
     release();
+  }
+  if (vodCache && !shared && isVodUrl(url)) {
+    try {
+      const cached = await vodCache.serve(
+        req,
+        key,
+        async (signal) => (await fetchPublic(url, { headers: upstreamHeaders(params, null), signal }, policy)).response,
+        CORS,
+      );
+      if (cached) return cached;
+    } catch (err) {
+      return failure(err);
+    }
   }
   const headersTimeout = new AbortController();
   const timer = setTimeout(() => headersTimeout.abort(new DOMException("timeout", "TimeoutError")), STREAM_HEADERS_TIMEOUT_MS);
@@ -292,7 +310,7 @@ async function serveStatic(pathname: string): Promise<Response> {
 const server = Bun.serve({
   port: PORT,
   // Seconds without a byte either way before Bun drops the connection; a slow panel building a big list can take a while.
-  idleTimeout: 120,
+  idleTimeout: 255,
   async fetch(req) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
@@ -308,7 +326,7 @@ const server = Bun.serve({
       case "/api/lists":
         return Response.json(publicLists(serverLists), { headers: { ...CORS, "cache-control": "no-store" } });
       case "/api/health":
-        return Response.json({ ok: true, streams, shared: fanout.stats(), images: images.size, art: art.sources }, { headers: CORS });
+        return Response.json({ ok: true, streams, shared: fanout.stats(), films: vodCache?.stats() ?? null, images: images.size, art: art.sources }, { headers: CORS });
     }
     if (url.pathname.startsWith("/api/x/")) return serverList(req, url);
     if (url.pathname.startsWith("/api/")) return fail("Não encontrado", 404);

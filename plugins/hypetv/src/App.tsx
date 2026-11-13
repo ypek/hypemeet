@@ -239,7 +239,8 @@ export function App() {
   const invite = together.broadcast && !together.hosting && !together.following ? together.broadcast : null;
   const showPlayer = !!now || (layout !== "narrow" && view === "live" && !detail);
   const favoriteKey = now?.key && (catalog.catalog.live?.items.some((i) => i.key === now.key) || now.owner) ? (now.owner?.key ?? now.key) : undefined;
-  const warning = catalog.account?.maxConnections === 1 && now && !now.play.live ? "Sua lista aceita 1 conexão: num filme, os outros podem não conseguir abrir." : undefined;
+  // Films are shared through one download on the server (server/vodcache.ts): no one-connection warning any more.
+  const warning = undefined;
 
   // Beside the player on a mid-size screen there's only room for the icons; elsewhere it's the viewer's choice.
   const squeezed = layout === "medium" && showPlayer;

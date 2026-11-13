@@ -114,6 +114,10 @@ export function Player({
   const [paused, setPaused] = useState(true);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  /** Where the knob is being dragged to (or was clicked), until it's let go. */
+  const [scrub, setScrub] = useState<number | null>(null);
+  /** A film waiting for data after a jump (or a hiccup): the spinner over the picture. */
+  const [buffering, setBuffering] = useState(false);
   const [{ volume, muted }, setVolume] = useState(loadVolume);
   /** Autoplay with sound was refused, it plays muted until a click. */
   const [mutedByBrowser, setMutedByBrowser] = useState(false);
@@ -161,6 +165,8 @@ export function Player({
     const list = attemptsFor(play);
     let index = 0;
     let lastReason = "Não deu pra abrir";
+    let lastPos = 0;
+    let retries = 0;
 
     const next = async (why?: string) => {
       if (cancelled) return;
@@ -173,9 +179,17 @@ export function Player({
         setReason(lastReason);
         return;
       }
+      // Already playing a film and the connection dropped (a slow link, a long wait after a jump): the same source
+      // again, from where it was, a few times before giving up on it.
+      let resumeFrom = 0;
+      if (started && !play.live && index > 0 && retries < 3) {
+        retries++;
+        index--;
+        resumeFrom = lastPos;
+      }
       const attempt = list[index++]!;
       setPhase("loading");
-      setStatus(index > 1 ? (attempt.proxied ? "Tentando pelo proxy…" : "Tentando de outro jeito…") : play.live ? "Sintonizando…" : "Carregando…");
+      setStatus(resumeFrom ? "Reconectando…" : index > 1 ? (attempt.proxied ? "Tentando pelo proxy…" : "Tentando de outro jeito…") : play.live ? "Sintonizando…" : "Carregando…");
       try {
         current = await attach(v, attempt, play, (r) => void next(r));
       } catch {
@@ -186,6 +200,15 @@ export function Player({
         current.destroy();
         return;
       }
+      if (resumeFrom > 0)
+        v.addEventListener(
+          "loadedmetadata",
+          () => {
+            handle.quietSeek = true;
+            v.currentTime = resumeFrom;
+          },
+          { once: true },
+        );
       stall = setTimeout(() => void next(play.live ? "O canal não começou a tocar" : "O vídeo não começou a tocar"), STALL_MS);
       // Live: a few seconds in hand before starting ride out the panel's bursts and gaps.
       if (play.live) await whenBuffered(v, LIVE_START_S, () => cancelled);
@@ -218,7 +241,10 @@ export function Player({
       lastReport = performance.now();
       latestCallbacks.current.onProgress?.(v.currentTime, v.duration);
     };
-    const onTime = () => report(false);
+    const onTime = () => {
+      if (!play.live && v.currentTime > 1 && !v.seeking) lastPos = v.currentTime;
+      report(false);
+    };
     const onPause = () => report(true);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("pause", onPause);
@@ -262,10 +288,26 @@ export function Player({
       setTime(v.currentTime);
       setDuration(Number.isFinite(v.duration) ? v.duration : 0);
     };
-    const events = ["play", "pause", "timeupdate", "durationchange", "loadedmetadata", "seeked"];
+    // "seeking": currentTime already reads the target, so the bar shows where we're going, not where we were.
+    const events = ["play", "pause", "timeupdate", "durationchange", "loadedmetadata", "seeking", "seeked"];
     for (const e of events) v.addEventListener(e, sync);
+    const busy = () => setBuffering(true);
+    const idle = () => setBuffering(false);
+    const seeked = () => v.paused && setBuffering(false);
+    v.addEventListener("seeking", busy);
+    v.addEventListener("waiting", busy);
+    v.addEventListener("playing", idle);
+    v.addEventListener("pause", idle);
+    v.addEventListener("seeked", seeked);
+    v.addEventListener("emptied", idle);
     return () => {
       for (const e of events) v.removeEventListener(e, sync);
+      v.removeEventListener("seeking", busy);
+      v.removeEventListener("waiting", busy);
+      v.removeEventListener("playing", idle);
+      v.removeEventListener("pause", idle);
+      v.removeEventListener("seeked", seeked);
+      v.removeEventListener("emptied", idle);
     };
   }, []);
 
@@ -309,7 +351,10 @@ export function Player({
   };
   const seek = (to: number) => {
     const v = video.current!;
-    if (Number.isFinite(v.duration)) v.currentTime = Math.min(Math.max(0, to), v.duration);
+    if (!Number.isFinite(v.duration)) return;
+    const target = Math.min(Math.max(0, to), v.duration);
+    setTime(target);
+    v.currentTime = target;
   };
 
   const poke = () => {
@@ -344,7 +389,13 @@ export function Player({
   const VolumeIcon = silent ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const showControls = !!play && (controls || paused || phase !== "playing");
   const control = "grid size-9 shrink-0 place-items-center rounded-full text-ink transition hover:bg-white/15";
-  const progress = duration ? (time / duration) * 100 : 0;
+  const shownTime = scrub ?? time;
+  const progress = duration ? (shownTime / duration) * 100 : 0;
+  const commitScrub = () => {
+    if (scrub === null) return;
+    seek(scrub);
+    setScrub(null);
+  };
 
   return (
     <div
@@ -364,6 +415,15 @@ export function Player({
       />
 
       {!play && <div className="absolute inset-0">{idle}</div>}
+
+      {play && phase === "playing" && buffering && !play.live && (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+          <div className="flex animate-fade-in flex-col items-center gap-2 rounded-lg bg-scrim px-5 py-4 text-soft backdrop-blur-md">
+            <Spinner className="size-8 text-accent-hi" />
+            <p className="text-sm font-semibold text-ink">Carregando…</p>
+          </div>
+        </div>
+      )}
 
       {play && phase === "loading" && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -444,9 +504,13 @@ export function Player({
               min={0}
               max={duration || 0}
               step={0.5}
-              value={Math.min(time, duration || 0)}
+              value={Math.min(shownTime, duration || 0)}
               disabled={!duration}
-              onChange={(e) => seek(Number(e.target.value))}
+              onChange={(e) => setScrub(Number(e.target.value))}
+              onPointerUp={commitScrub}
+              onTouchEnd={commitScrub}
+              onKeyUp={commitScrub}
+              onBlur={commitScrub}
               aria-label="Posição"
               style={{ "--fill": `${progress}%` } as CSSProperties}
               className="range-accent w-full disabled:opacity-50"
@@ -486,7 +550,7 @@ export function Player({
               </span>
             ) : (
               <span className="px-1.5 text-xs font-semibold text-ink/90 tabular-nums">
-                {formatTime(time)} <span className="text-ink/50">/ {formatTime(duration)}</span>
+                {formatTime(shownTime)} <span className="text-ink/50">/ {formatTime(duration)}</span>
               </span>
             )}
             <span className="min-w-0 flex-1" />
