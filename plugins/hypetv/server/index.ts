@@ -243,6 +243,21 @@ async function resolveArt(req: Request): Promise<Response> {
   return Response.json({ results }, { headers: { ...CORS, "cache-control": "no-store" } });
 }
 
+/**
+ * Lists and catalogues are big JSON and M3U (an Xtream film list runs past 15 MB) and squeeze to a fifth or less:
+ * gzipped when the browser takes it.
+ */
+async function compress(req: Request, res: Response): Promise<Response> {
+  if (!res.ok || !/\bgzip\b/.test(req.headers.get("accept-encoding") ?? "")) return res;
+  const body = new Uint8Array(await res.arrayBuffer());
+  const headers = new Headers(res.headers);
+  if (body.byteLength < 2048) return new Response(body, { status: res.status, headers });
+  headers.set("content-encoding", "gzip");
+  headers.set("vary", "accept-encoding");
+  headers.delete("content-length");
+  return new Response(Bun.gzipSync(body, { level: 6 }), { status: res.status, headers });
+}
+
 /** The lists everyone starts with (lists.ts); in Dokploy's env or plugins/hypetv/.env.local, never in git. */
 const serverLists = parseLists(process.env.HYPETV_LISTS);
 
@@ -259,7 +274,7 @@ async function serverList(req: Request, url: URL): Promise<Response> {
   }
   const res = await fetchText(req, new URLSearchParams({ u: upstream.url.href }));
   const text = scrubLogin(await res.text(), list);
-  return new Response(text, { status: res.status, headers: res.headers });
+  return compress(req, new Response(text, { status: res.status, headers: res.headers }));
 }
 
 async function serveStatic(pathname: string): Promise<Response> {
@@ -285,7 +300,7 @@ const server = Bun.serve({
     if (req.method !== "GET" && req.method !== "HEAD") return fail("Método não suportado", 405);
     switch (url.pathname) {
       case "/api/fetch":
-        return fetchText(req, url.searchParams);
+        return compress(req, await fetchText(req, url.searchParams));
       case "/api/stream":
         return relayStream(req, url.searchParams);
       case "/api/img":

@@ -3,7 +3,7 @@ import { catalogFromM3U } from "./lib/library";
 import { parseM3U } from "./lib/m3u";
 import { fetchText, ListError } from "./lib/net";
 import { getText, putText, type PlaylistConfig } from "./lib/storage";
-import type { Catalog, Kind } from "./lib/types";
+import type { Catalog, Kind, Section } from "./lib/types";
 import { Xtream, type XtreamAccount } from "./lib/xtream";
 
 type Load = "loading" | "ready" | "error";
@@ -42,6 +42,10 @@ export function useCatalog(config: PlaylistConfig | null): CatalogState {
   const [round, setRound] = useState({ n: 0, fresh: false });
   const xtreamRef = useRef<Xtream | undefined>(undefined);
   const inflight = useRef(new Map<Kind, AbortController>());
+  const listId = useRef<string | undefined>(undefined);
+  listId.current = config?.id;
+  const fresh = useRef(false);
+  fresh.current = round.fresh;
 
   useEffect(() => {
     if (!config) return;
@@ -67,20 +71,39 @@ export function useCatalog(config: PlaylistConfig | null): CatalogState {
     return () => abort.abort();
   }, [config, round]);
 
+  // Xtream catalogues are big (tens of MB of JSON): the copy kept from last time shows at once, the panel's
+  // current one replaces it when it arrives. "Atualizar lista" skips the copy.
   const loadSection = useCallback((kind: Kind) => {
     const xtream = xtreamRef.current;
     if (!xtream || inflight.current.has(kind)) return;
     const abort = new AbortController();
     inflight.current.set(kind, abort);
+    const cacheKey = `xt:${listId.current}:${kind}`;
+    let cached = false;
+    let arrived = false;
+    const show = (section: Section) =>
+      setState((s) => ({ ...s, catalog: { ...s.catalog, [kind]: section }, sections: { ...s.sections, [kind]: { status: "ready" } } }));
     setState((s) => ({ ...s, sections: { ...s.sections, [kind]: { status: "loading" } } }));
+    if (!fresh.current)
+      void getText(cacheKey).then((text) => {
+        if (!text || arrived || abort.signal.aborted || xtreamRef.current !== xtream) return;
+        try {
+          show(JSON.parse(text) as Section);
+          cached = true;
+        } catch {
+          // a damaged copy: wait for the panel
+        }
+      });
     xtream.section(kind, abort.signal).then(
       (section) => {
+        arrived = true;
         if (xtreamRef.current !== xtream) return;
-        setState((s) => ({ ...s, catalog: { ...s.catalog, [kind]: section }, sections: { ...s.sections, [kind]: { status: "ready" } } }));
+        show(section);
+        void putText(cacheKey, JSON.stringify(section));
       },
       (err: unknown) => {
         inflight.current.delete(kind);
-        if (abort.signal.aborted || xtreamRef.current !== xtream) return;
+        if (abort.signal.aborted || xtreamRef.current !== xtream || cached) return;
         setState((s) => ({ ...s, sections: { ...s.sections, [kind]: { status: "error", error: reasonOf(err) } } }));
       },
     );

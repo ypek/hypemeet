@@ -1,7 +1,8 @@
-import { Heart, Radio, Users, X } from "lucide-react";
+import { Gauge, Heart, Radio, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Broadcast, Together } from "../room";
-import type { Playable } from "../lib/types";
+import type { CatalogItem, Playable } from "../lib/types";
+import type { Variant } from "../lib/variants";
 import type { GuideEntry, Xtream } from "../lib/xtream";
 import { Art, Button, Face, LiveBadge } from "./ui";
 
@@ -68,6 +69,10 @@ export function NowPlaying({
   together,
   inRoom,
   warning,
+  variants,
+  playingKey,
+  onVariant,
+  suggestion,
 }: {
   play: Playable;
   guide: GuideEntry[];
@@ -77,6 +82,12 @@ export function NowPlaying({
   inRoom: boolean;
   /** Shown to the host when the room might not manage to watch along (one-connection lists). */
   warning?: string;
+  /** The same channel in other qualities (FHD, HD, SD…). */
+  variants?: Variant[];
+  playingKey?: string;
+  onVariant?: (item: CatalogItem) => void;
+  /** A lighter version to offer after the stream kept stalling. */
+  suggestion?: Variant;
 }) {
   const { hosting, following, broadcast, audience } = together;
   return (
@@ -95,6 +106,34 @@ export function NowPlaying({
           </div>
           {play.subtitle && <p className="truncate text-xs text-soft">{play.subtitle}</p>}
           <GuideLine guide={guide} />
+          {variants && variants.length > 1 && onVariant && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1" role="group" aria-label="Qualidade">
+              {variants.map((v) => {
+                const on = v.item.key === playingKey;
+                return (
+                  <button
+                    key={v.item.key}
+                    type="button"
+                    onClick={() => !on && onVariant(v.item)}
+                    aria-pressed={on}
+                    title={v.item.name}
+                    className={`h-6 rounded-full border-2 px-2 text-[11px] font-bold transition ${on ? "border-accent-hi bg-accent text-on-accent" : "border-line bg-surface text-soft hover:text-ink"}`}
+                  >
+                    {v.quality.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {suggestion && onVariant && (
+            <button
+              type="button"
+              onClick={() => onVariant(suggestion.item)}
+              className="mt-1.5 flex animate-fade-in items-center gap-1.5 rounded-full border-2 border-warn/50 bg-warn/10 px-2.5 py-1 text-xs font-bold text-warn transition hover:bg-warn/20"
+            >
+              <Gauge className="size-3.5" /> Travando? Ver em {suggestion.quality.label}
+            </button>
+          )}
         </div>
       </div>
 

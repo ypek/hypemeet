@@ -28,10 +28,10 @@ const HIDE_CONTROLS_MS = 2800;
 type Phase = "idle" | "loading" | "playing" | "error" | "blocked";
 
 /** Seconds of live video in hand before starting, and before resuming once the buffer ran dry. */
-const LIVE_START_S = 3;
-const LIVE_RESUME_S = 4;
+const LIVE_START_S = 5;
+const LIVE_RESUME_S = 8;
 /** Never wait longer than this for that cushion: a slow channel still starts. */
-const BUFFER_WAIT_MAX_MS = 8000;
+const BUFFER_WAIT_MAX_MS = 12_000;
 
 /** Seconds buffered ahead of the playhead. */
 function bufferedAhead(v: HTMLVideoElement): number {
@@ -75,6 +75,7 @@ export function Player({
   onProgress,
   onZap,
   panel,
+  onStall,
 }: {
   play: Playable | null;
   handle: PlayerHandle;
@@ -91,12 +92,14 @@ export function Player({
   onProgress?: (time: number, duration: number) => void;
   /** PageUp / PageDown: the previous / next channel. */
   onZap?: (delta: -1 | 1) => void;
+  /** Live ran out of buffer (a slow connection, a struggling channel). */
+  onStall?: () => void;
   /** IPTVnator's fullscreen channel panel: the list beside the picture, toggled with C. */
   panel?: (close: () => void) => ReactNode;
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
-  const latestCallbacks = useRef({ onStarted, onProgress, resumeAt });
-  latestCallbacks.current = { onStarted, onProgress, resumeAt };
+  const latestCallbacks = useRef({ onStarted, onProgress, resumeAt, onStall });
+  latestCallbacks.current = { onStarted, onProgress, resumeAt, onStall };
   const box = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -219,6 +222,7 @@ export function Player({
     const onWaiting = async () => {
       if (!play.live || refilling || v.paused) return;
       refilling = true;
+      latestCallbacks.current.onStall?.();
       setStatus("Carregando…");
       setPhase("loading");
       handle.quietUntil = performance.now() + 1000;

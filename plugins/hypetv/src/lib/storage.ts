@@ -80,6 +80,7 @@ export function forgetPlaylist(id: string) {
     }
   }
   void deleteText(id);
+  for (const kind of ["live", "movie", "series"]) void deleteText(`xt:${id}:${kind}`);
 }
 
 export const loadVolume = () => read<{ volume: number; muted: boolean }>("volume", { volume: 1, muted: false });

@@ -32,6 +32,7 @@ import {
   type Progress,
 } from "./lib/storage";
 import type { CatalogItem, Kind, Playable } from "./lib/types";
+import { lighter, variantIndex, variantKey, type Variant } from "./lib/variants";
 import { useHost, useTogether } from "./room";
 import { useCatalog } from "./useCatalog";
 
@@ -197,6 +198,15 @@ export function App() {
     const at = zapList.findIndex((i) => i.key === now.key);
     playChannel(zapList[(at + delta + zapList.length) % zapList.length]!);
   };
+
+  // The channel on screen in its other qualities; after 3 stalls in 90 s, a lighter one is offered.
+  const variantsByKey = useMemo(() => (liveItems ? variantIndex(liveItems) : new Map<string, Variant[]>()), [liveItems]);
+  const variants = now?.play.live ? variantsByKey.get(variantKey(now.play.title)) : undefined;
+  const [stalls, setStalls] = useState<number[]>([]);
+  const nowKey = now?.key;
+  useEffect(() => setStalls([]), [nowKey]);
+  const recentStalls = stalls.filter((t) => Date.now() - t < 90_000).length;
+  const suggestion = variants && nowKey && recentStalls >= 3 ? lighter(variants, nowKey) : undefined;
 
   const added = (config: PlaylistConfig) => {
     const next = [...playlists, config];
@@ -445,6 +455,7 @@ export function App() {
                   onStarted={() => now?.recentKey && setRecents(pushRecent(active.id, now.recentKey))}
                   onProgress={(t, d) => now?.key && setProgress(saveProgress(active.id, now.key, t, d, now.play, now.owner))}
                   onZap={now?.play.live ? zap : undefined}
+                  onStall={() => setStalls((s) => [...s.slice(-9), Date.now()])}
                   panel={
                     now?.play.live && zapList.length
                       ? (close) => (
@@ -482,6 +493,10 @@ export function App() {
                   together={together}
                   inRoom={inRoom}
                   warning={warning}
+                  variants={variants}
+                  playingKey={now.key}
+                  onVariant={playChannel}
+                  suggestion={suggestion}
                 />
               )}
             </section>
