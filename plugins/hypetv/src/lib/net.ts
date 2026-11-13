@@ -30,7 +30,7 @@ const DIRECT = /^https:\/\/(image\.tmdb\.org|cdn\.jsdelivr\.net|upload\.wikimedi
  * Inside the Discord Activity the plugin lives behind Discord's proxy (/plugins/hypetv on *.discordsays.com) and
  * its CSP lets nothing else load: every image goes through our own relay there.
  */
-export const insideDiscord = /\.discordsays\.com$/i.test(location.hostname);
+export const insideDiscord = () => typeof location !== "undefined" && /\.discordsays\.com$/i.test(location.hostname);
 
 /**
  * Logos and posters. The big CDNs are loaded directly; everything else (imgur refuses hotlinks, resellers' hosts
@@ -40,7 +40,7 @@ export function imageUrl(url: string | undefined, tmdbSize?: "w185" | "w342" | "
   if (!url || !/^https?:\/\//i.test(url)) return undefined;
   // Lists link TMDB's big renditions (w780, original); a grid of posters only needs a fraction of that.
   if (tmdbSize) url = url.replace(/^(https:\/\/image\.tmdb\.org\/t\/p\/)(w\d+|original)\//i, `$1${tmdbSize}/`);
-  return DIRECT.test(url) && !insideDiscord ? url : relay("img", url);
+  return DIRECT.test(url) && !insideDiscord() ? url : relay("img", url);
 }
 
 /**
