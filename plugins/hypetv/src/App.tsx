@@ -20,11 +20,13 @@ import {
   loadPlaylists,
   loadProgress,
   loadRecents,
+  loadSidebarCollapsed,
   pushRecent,
   saveFavorites,
   saveLast,
   savePlaylists,
   saveProgress,
+  saveSidebarCollapsed,
   type PlaylistConfig,
   type Progress,
 } from "./lib/storage";
@@ -94,6 +96,12 @@ export function App() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recents, setRecents] = useState<string[]>([]);
   const [progress, setProgress] = useState<Record<string, Progress>>({});
+  const [collapsed, setCollapsed] = useState(loadSidebarCollapsed);
+  const toggleSidebar = () =>
+    setCollapsed((c) => {
+      saveSidebarCollapsed(!c);
+      return !c;
+    });
 
   const activeKey = active?.id;
   useEffect(() => {
@@ -192,7 +200,9 @@ export function App() {
   const favoriteKey = now?.key && (catalog.catalog.live?.items.some((i) => i.key === now.key) || now.owner) ? (now.owner?.key ?? now.key) : undefined;
   const warning = catalog.account?.maxConnections === 1 && now && !now.play.live ? "Sua lista aceita 1 conexão: num filme, os outros podem não conseguir abrir." : undefined;
 
-  const sidebarMode = layout === "narrow" ? "bar" : layout === "medium" && showPlayer ? "icons" : "full";
+  // Beside the player on a mid-size screen there's only room for the icons; elsewhere it's the viewer's choice.
+  const squeezed = layout === "medium" && showPlayer;
+  const sidebarMode = layout === "narrow" ? "bar" : collapsed || squeezed ? "icons" : "full";
 
   if (!active) return <AddPlaylist onAdded={added} />;
 
@@ -346,6 +356,7 @@ export function App() {
         favoriteCount={favorites.size}
         onAdd={() => setAdding(true)}
         mode={sidebarMode}
+        onToggle={squeezed ? undefined : toggleSidebar}
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

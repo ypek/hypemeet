@@ -1,5 +1,5 @@
-import { Clapperboard, Film, Heart, History, Info, Play, Star, Tv } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Clapperboard, Film, Heart, History, Info, Play, Star, Tv } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useArt } from "../lib/art";
 import { imageUrl } from "../lib/net";
 import type { TitleInfo, Xtream } from "../lib/xtream";
@@ -19,22 +19,56 @@ export function useIndex(catalog: Catalog) {
   }, [catalog]);
 }
 
+/** A title without the year lists repeat in it ("Quem Ama Cuida (2026) (2026)"): the year goes on its own line. */
+export const titleOf = (name: string) => name.replace(/\s*\((19|20)\d{2}\)/g, "").trim() || name;
+
+/**
+ * A horizontal rail. The scroller sits inside the page's margins (cards never slide against the sidebar), fades
+ * at its edges, and has arrows to page through it.
+ */
 function Rail({ title, icon: Icon, children, loading }: { title: string; icon: typeof Film; children: ReactNode; loading?: boolean }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: false });
+  const measure = () => {
+    const el = scroller.current;
+    if (el) setEdges({ start: el.scrollLeft < 8, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 8 });
+  };
+  useEffect(measure);
+  const page = (dir: -1 | 1) => scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.85, behavior: "smooth" });
+  const arrow = "absolute top-[calc(50%-1.25rem)] z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border-2 border-line bg-panel/95 text-ink shadow-float backdrop-blur-md transition hover:bg-surface-hi disabled:pointer-events-none disabled:opacity-0";
+  const mask = `linear-gradient(to right, ${edges.start ? "black" : "transparent"} 0, black 40px, black calc(100% - 40px), ${edges.end ? "black" : "transparent"} 100%)`;
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 px-5 font-display text-lg font-extrabold tracking-[-0.01em] sm:px-7">
+    <section className="group/rail flex flex-col gap-3 px-5 sm:px-7">
+      <h2 className="flex items-center gap-2 font-display text-lg font-extrabold tracking-[-0.01em]">
         <Icon className="size-5 text-accent-hi" /> {title}
         {loading && <Spinner className="size-4 text-soft" />}
       </h2>
-      <div className="scrollbar-thin flex snap-x gap-3 overflow-x-auto px-5 pb-2 sm:px-7">{children}</div>
+      <div className="relative">
+        <div
+          ref={scroller}
+          onScroll={measure}
+          style={{ maskImage: mask, WebkitMaskImage: mask }}
+          className="flex snap-x snap-mandatory scroll-px-1 gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {children}
+        </div>
+        <button type="button" onClick={() => page(-1)} disabled={edges.start} aria-label="Anteriores" className={`${arrow} -left-3 opacity-0 group-hover/rail:opacity-100`}>
+          <ChevronLeft className="size-5" />
+        </button>
+        <button type="button" onClick={() => page(1)} disabled={edges.end} aria-label="Próximos" className={`${arrow} -right-3 opacity-0 group-hover/rail:opacity-100`}>
+          <ChevronRight className="size-5" />
+        </button>
+      </div>
     </section>
   );
 }
 
-export function PosterTile({ item, progress, onOpen, width = "w-32" }: { item: CatalogItem; progress?: Progress; onOpen: () => void; width?: string }) {
+export function PosterTile({ item, progress, onOpen, width = "w-36" }: { item: CatalogItem; progress?: Progress; onOpen: () => void; width?: string }) {
+  const year = item.info?.year ?? /\((19|20)\d{2}\)/.exec(item.name)?.[0].slice(1, 5);
+  const rating = Number(item.info?.rating) || 0;
   return (
-    <button type="button" onClick={onOpen} className={`group/tile flex shrink-0 snap-start flex-col gap-1.5 text-left ${width}`}>
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border-2 border-line transition group-hover/tile:-translate-y-0.5 group-hover/tile:border-accent">
+    <button type="button" onClick={onOpen} className={`group/tile flex shrink-0 snap-start flex-col gap-2 text-left ${width}`}>
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border-2 border-line transition duration-200 ease-out-expo group-hover/tile:-translate-y-1 group-hover/tile:border-accent group-hover/tile:shadow-float">
         <Art kind={item.kind} name={item.name} src={item.logo} year={item.info?.year} shape="poster" className="size-full" />
         {progress && (
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-black/60">
@@ -42,7 +76,20 @@ export function PosterTile({ item, progress, onOpen, width = "w-32" }: { item: C
           </span>
         )}
       </div>
-      <span className="line-clamp-2 text-[13px] leading-tight font-bold">{item.name}</span>
+      <span className="flex min-w-0 flex-col gap-0.5 px-0.5">
+        <span className="line-clamp-2 text-[13px] leading-tight font-bold">{titleOf(item.name)}</span>
+        {(year || rating > 0) && (
+          <span className="flex items-center gap-1.5 text-[11px] text-soft">
+            {year}
+            {rating > 0 && (
+              <>
+                {year && <span aria-hidden>·</span>}
+                <Star className="size-3 fill-warn text-warn" /> {rating.toFixed(1).replace(".", ",")}
+              </>
+            )}
+          </span>
+        )}
+      </span>
     </button>
   );
 }

@@ -164,3 +164,7 @@ export function saveProgress(playlist: string, key: string, t: number, d: number
 /** Started but not finished: what "Continuar assistindo" shows. */
 export const inProgress = (p: Progress | undefined) => !!p && p.d > 0 && p.t > 30 && p.t / p.d < WATCHED_AT;
 export const watched = (p: Progress | undefined) => !!p && p.d > 0 && p.t / p.d >= WATCHED_AT;
+
+/** The sidebar folded down to its icons (a viewer's choice, kept across lists). */
+export const loadSidebarCollapsed = () => read<boolean>("sidebar-collapsed", false);
+export const saveSidebarCollapsed = (collapsed: boolean) => write("sidebar-collapsed", collapsed);

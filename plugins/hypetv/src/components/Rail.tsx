@@ -1,4 +1,4 @@
-import { Clapperboard, Clock, Film, Heart, History, House, LayoutGrid, Plus, Tv, type LucideIcon } from "lucide-react";
+import { Clapperboard, Clock, Film, Heart, History, House, LayoutGrid, PanelLeftClose, PanelLeftOpen, Plus, Tv, type LucideIcon } from "lucide-react";
 import { ALL, FAVORITES, RECENTS } from "../lib/library";
 import type { Kind, Section } from "../lib/types";
 import { Wordmark } from "./ui";
@@ -66,6 +66,7 @@ export function Sidebar({
   favoriteCount,
   onAdd,
   mode,
+  onToggle,
 }: {
   view: View;
   onView: (v: View) => void;
@@ -78,6 +79,8 @@ export function Sidebar({
   favoriteCount: number;
   onAdd: () => void;
   mode: "full" | "icons" | "bar";
+  /** Fold to icons / unfold; absent when the layout decides (beside the player on mid-size screens). */
+  onToggle?: () => void;
 }) {
   const items = ITEMS.filter((i) => !(i.view === "live" || i.view === "movie" || i.view === "series") || kinds.includes(i.view));
 
@@ -97,8 +100,8 @@ export function Sidebar({
   const categories = section && (view === "live" || view === "movie" || view === "series");
   return (
     <aside className={`flex shrink-0 flex-col border-r-2 border-line bg-panel ${collapsed ? "w-[4.25rem] items-center" : "w-64"}`}>
-      <div className={`flex h-14 shrink-0 items-center border-b-2 border-line ${collapsed ? "justify-center" : "px-4"}`}>
-        {collapsed ? <img src="./icon.svg" alt="HypeTv" className="size-9" /> : <Wordmark className="text-[22px]" />}
+      <div className="flex h-14 shrink-0 items-center justify-center border-b-2 border-line px-4">
+        {collapsed ? <img src="./icon.svg" alt="HypeTv" className="size-9" /> : <Wordmark className="text-[24px]" />}
       </div>
       <nav aria-label="Seções" className={`flex shrink-0 flex-col gap-0.5 p-2.5 ${collapsed ? "items-center" : ""}`}>
         {items.map(({ view: v, label, icon }) => (
@@ -157,8 +160,21 @@ export function Sidebar({
         <span className="flex-1" />
       )}
 
-      <div className={`shrink-0 border-t-2 border-line p-2.5 ${collapsed ? "flex justify-center" : ""}`}>
-        <NavItem active={false} icon={Plus} label="Adicionar lista" collapsed={collapsed} onClick={onAdd} />
+      <div className={`flex shrink-0 gap-1.5 border-t-2 border-line p-2.5 ${collapsed ? "flex-col items-center" : "items-center"}`}>
+        <div className={collapsed ? "" : "min-w-0 flex-1"}>
+          <NavItem active={false} icon={Plus} label="Adicionar lista" collapsed={collapsed} onClick={onAdd} />
+        </div>
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={collapsed ? "Expandir a lateral" : "Recolher a lateral"}
+            title={collapsed ? "Expandir" : "Recolher"}
+            className="grid size-10 shrink-0 place-items-center rounded-md border-2 border-line text-soft transition hover:bg-surface-hi hover:text-ink"
+          >
+            {collapsed ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
+          </button>
+        )}
       </div>
     </aside>
   );
