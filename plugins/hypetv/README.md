@@ -50,7 +50,7 @@ bun run build      # tipos + build da página
 
 | Variável | Pra quê |
 |---|---|
-| `HYPETV_LISTS` | Listas que todo mundo já recebe: `Nome|http://servidor:8080|usuario|senha`, várias separadas por `;`. O login nunca vai pro navegador. |
+| `HYPETV_LISTS` | Listas que todo mundo já recebe: `Nome\|http://servidor:8080\|usuario\|senha`, várias separadas por `;`. O login nunca vai pro navegador. |
 | `TMDB_API_KEY` | Capas de filmes e séries que a lista não tem (chave v3 ou token v4). Sem ela, Wikipedia. |
 | `HYPETV_HOSTS` | Hosts IPTV que o proxy aceita (e subdomínios), separados por vírgula. Vazio: qualquer host público. |
 | `HYPETV_MAX_STREAMS` | Streams abertos ao mesmo tempo no proxy (padrão 40). |
