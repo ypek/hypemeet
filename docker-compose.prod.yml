@@ -26,6 +26,8 @@ services:
 
   # HypeTv (plugins/hypetv): IPTV lists in the room. Its relay carries the streams, so it runs apart from the app.
   # TMDB_API_KEY (optional) finds posters lists lack; HYPETV_HOSTS (optional) limits the relay to those IPTV hosts.
+  # HYPETV_LISTS (optional): lists everyone starts with, "Name|http://server:8080|user|password" (several: ";").
+  # Set it in Dokploy, never in git: the login stays on this service, the page only sees "-".
   hypetv:
     build:
       context: .
@@ -35,6 +37,7 @@ services:
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       HYPETV_HOSTS: ${HYPETV_HOSTS:-}
       HYPETV_MAX_STREAMS: ${HYPETV_MAX_STREAMS:-40}
+      HYPETV_LISTS: ${HYPETV_LISTS:-}
     dns:
       - 1.1.1.1
       - 8.8.8.8

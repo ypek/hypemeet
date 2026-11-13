@@ -27,6 +27,7 @@ import {
   savePlaylists,
   saveProgress,
   saveSidebarCollapsed,
+  sweepOrphans,
   type PlaylistConfig,
   type Progress,
 } from "./lib/storage";
@@ -58,28 +59,48 @@ export function App() {
   const [adding, setAdding] = useState(false);
   const active = playlists.find((p) => p.id === activeId) ?? playlists[0] ?? null;
 
-  // Dev: the lists in .env.local (HYPETV_DEV_XTREAM) are added on first load, so testing starts on a real list.
+  // The server's lists (HYPETV_LISTS) come first for everyone. The page only knows them as api/x/<id>: the
+  // server adds the login. Older copies kept in this browser (with a login in them) are dropped.
+  const [listsReady, setListsReady] = useState(false);
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
     let cancelled = false;
-    fetch(new URL("api/dev-playlists", document.baseURI))
+    const done = () => !cancelled && setListsReady(true);
+    const timer = setTimeout(done, 4000);
+    fetch(new URL("api/lists", document.baseURI))
       .then((r) => (r.ok ? r.json() : []))
-      .then((lists: { name: string; server: string; username: string; password: string }[]) => {
-        if (cancelled || !Array.isArray(lists) || !lists.length) return;
+      .then((lists: { id: string; name: string }[]) => {
+        if (cancelled || !Array.isArray(lists)) return;
+        const builtins = lists.map(
+          (l): PlaylistConfig => ({
+            id: `server-${l.id}`,
+            name: l.name,
+            addedAt: 0,
+            builtin: true,
+            type: "xtream",
+            server: new URL(`api/x/${l.id}`, document.baseURI).href,
+            username: "-",
+            password: "-",
+          }),
+        );
         setPlaylists((current) => {
-          const fresh = lists
-            .filter((l) => !current.some((c) => c.type === "xtream" && c.server === l.server && c.username === l.username))
-            .map((l, i): PlaylistConfig => ({ id: `dev-${i}-${l.username}`, addedAt: Date.now(), type: "xtream", ...l }));
-          if (!fresh.length) return current;
-          const next = [...fresh, ...current];
+          const keep = (c: PlaylistConfig) => !c.builtin && !c.id.startsWith("server-") && !c.id.startsWith("dev-");
+          // Lists that went away take their favourites, recents and progress along (old copies held a login in their links).
+          for (const gone of current) if (!keep(gone) && !builtins.some((b) => b.id === gone.id)) forgetPlaylist(gone.id);
+          const next = [...builtins, ...current.filter(keep)];
           savePlaylists(next);
-          setActiveId(fresh[0]!.id);
+          sweepOrphans(next.map((p) => p.id));
           return next;
         });
+        setActiveId((id) => (id && !id.startsWith("dev-") && (!id.startsWith("server-") || builtins.some((b) => b.id === id)) ? id : (builtins[0]?.id ?? null)));
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(timer);
+        done();
+      });
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, []);
   const catalog = useCatalog(active);
@@ -204,6 +225,12 @@ export function App() {
   const squeezed = layout === "medium" && showPlayer;
   const sidebarMode = layout === "narrow" ? "bar" : collapsed || squeezed ? "icons" : "full";
 
+  if (!active && !listsReady)
+    return (
+      <div className="grid size-full place-items-center bg-canvas text-soft">
+        <Spinner className="size-8 text-accent-hi" />
+      </div>
+    );
   if (!active) return <AddPlaylist onAdded={added} />;
 
   const contentWidth =

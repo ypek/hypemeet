@@ -7,7 +7,11 @@ const API = () => new URL("api/", document.baseURI);
 export class ListError extends Error {}
 
 /** `live`: a live MPEG-TS channel, which the relay shares between everyone watching it (server/fanout.ts). */
+/** Our own server (a list it holds, api/x/…): fetched as is, never relayed through itself. */
+export const isOwn = (url: string) => url.startsWith(API().href);
+
 export function relay(kind: "fetch" | "stream" | "img", url: string, headers?: StreamHeaders, live = false): string {
+  if (isOwn(url)) return url;
   const target = new URL(kind, API());
   target.searchParams.set("u", url);
   if (headers?.ua) target.searchParams.set("ua", headers.ua);

@@ -31,10 +31,12 @@ Aberto direto em http://localhost:5174 ele funciona sozinho, sem o "passar pra s
 Pra já abrir com uma lista sua, crie `plugins/hypetv/.env.local` (fica fora do git) com:
 
 ```
-HYPETV_DEV_XTREAM=Minha lista|http://servidor:8080|usuario|senha
+HYPETV_LISTS=Minha lista|http://servidor:8080|usuario|senha
 ```
 
-Só em dev: em produção essa rota não existe.
+Em produção é a mesma variável, nas envs do serviço no Dokploy. A lista aparece primeiro pra todo mundo, e o
+login fica no servidor: a página só conhece `api/x/1` e usa `-` como usuário e senha (`server/lists.ts`).
+Quem tiver o endereço do plugin assiste por essa conta, então use com uma sala de confiança.
 
 Atrás de proxy corporativo com inspeção de TLS, rode o servidor com `bun --use-system-ca` (ou
 `NODE_USE_SYSTEM_CA=1`).
@@ -48,6 +50,7 @@ bun run build      # tipos + build da página
 
 | Variável | Pra quê |
 |---|---|
+| `HYPETV_LISTS` | Listas que todo mundo já recebe: `Nome|http://servidor:8080|usuario|senha`, várias separadas por `;`. O login nunca vai pro navegador. |
 | `TMDB_API_KEY` | Capas de filmes e séries que a lista não tem (chave v3 ou token v4). Sem ela, Wikipedia. |
 | `HYPETV_HOSTS` | Hosts IPTV que o proxy aceita (e subdomínios), separados por vírgula. Vazio: qualquer host público. |
 | `HYPETV_MAX_STREAMS` | Streams abertos ao mesmo tempo no proxy (padrão 40). |

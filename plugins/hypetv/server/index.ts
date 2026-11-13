@@ -5,6 +5,8 @@
  *   GET  api/stream?u=…  streams; HLS playlists come back rewritten to point here again
  *   GET  api/img?u=…     logos and posters, cached (imgur and resellers' hosts refuse or drop hotlinks)
  *   POST api/art         { items: [{ kind, name, year?, tvgId? }] } → { results: [{ image?, backdrop? } | null] }
+ *   GET  api/lists       the lists everyone starts with (HYPETV_LISTS): id and name only
+ *   GET  api/x/<id>/…    one of those, spoken to as an Xtream panel; the login is added here (lists.ts)
  *
  * Both take `ua` and `ref` (user agent and referrer a list asked for). Everything answers with
  * Access-Control-Allow-Origin: * — inside the Discord Activity the plugin runs on an opaque origin.
@@ -12,6 +14,7 @@
 import { join, normalize } from "node:path";
 import { createArt, type ArtKind } from "./art";
 import { createFanout } from "./fanout";
+import { parseLists, publicLists, scrubLogin, upstreamFor } from "./lists";
 import { BlockedError, fetchPublic, looksLikeHls, rewriteHls, upstreamHeaders, type ProxyPolicy } from "./proxy";
 
 const PRODUCTION = process.env.NODE_ENV === "production";
@@ -240,18 +243,23 @@ async function resolveArt(req: Request): Promise<Response> {
   return Response.json({ results }, { headers: { ...CORS, "cache-control": "no-store" } });
 }
 
-/**
- * Dev only: Xtream lists to start with, from HYPETV_DEV_XTREAM in plugins/hypetv/.env.local (gitignored), as
- * `name|server|user|password`, several separated by `;`. Never served in production: it hands the logins out.
- */
-function devPlaylists(): Response {
-  if (PRODUCTION) return fail("Não encontrado", 404);
-  const lists = (process.env.HYPETV_DEV_XTREAM ?? "")
-    .split(";")
-    .map((entry) => entry.trim().split("|"))
-    .filter((parts) => parts.length === 4 && parts.every((p) => p.trim()))
-    .map(([name, server, username, password]) => ({ name: name!.trim(), server: server!.trim(), username: username!.trim(), password: password!.trim() }));
-  return Response.json(lists, { headers: { ...CORS, "cache-control": "no-store" } });
+/** The lists everyone starts with (lists.ts); in Dokploy's env or plugins/hypetv/.env.local, never in git. */
+const serverLists = parseLists(process.env.HYPETV_LISTS);
+
+/** api/x/<id>/<path>: one of those lists, as an Xtream panel whose login only this server knows. */
+async function serverList(req: Request, url: URL): Promise<Response> {
+  const m = /^\/api\/x\/(\d+)\/(.+)$/.exec(url.pathname);
+  const list = m && serverLists.find((l) => l.id === m[1]);
+  const upstream = m && list ? upstreamFor(serverLists, m[1]!, m[2]!, url.searchParams) : null;
+  if (!list || !upstream) return fail("Não encontrado", 404);
+  if (upstream.kind === "stream") {
+    const params = new URLSearchParams({ u: upstream.url.href });
+    if (upstream.live) params.set("live", "1");
+    return relayStream(req, params);
+  }
+  const res = await fetchText(req, new URLSearchParams({ u: upstream.url.href }));
+  const text = scrubLogin(await res.text(), list);
+  return new Response(text, { status: res.status, headers: res.headers });
 }
 
 async function serveStatic(pathname: string): Promise<Response> {
@@ -282,11 +290,12 @@ const server = Bun.serve({
         return relayStream(req, url.searchParams);
       case "/api/img":
         return relayImage(req, url.searchParams);
-      case "/api/dev-playlists":
-        return devPlaylists();
+      case "/api/lists":
+        return Response.json(publicLists(serverLists), { headers: { ...CORS, "cache-control": "no-store" } });
       case "/api/health":
         return Response.json({ ok: true, streams, shared: fanout.stats(), images: images.size, art: art.sources }, { headers: CORS });
     }
+    if (url.pathname.startsWith("/api/x/")) return serverList(req, url);
     if (url.pathname.startsWith("/api/")) return fail("Não encontrado", 404);
     return PRODUCTION ? serveStatic(url.pathname) : fail("Em dev a página vem do Vite (porta 5174)", 404);
   },

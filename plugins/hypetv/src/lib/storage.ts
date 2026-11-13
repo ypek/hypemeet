@@ -6,7 +6,13 @@ import type { Playable } from "./types";
  * (lists last for the session there).
  */
 
-export type PlaylistConfig = { id: string; name: string; addedAt: number } & (
+export type PlaylistConfig = {
+  id: string;
+  name: string;
+  addedAt: number;
+  /** One of the server's lists (HYPETV_LISTS): everyone has it, nobody removes it. */
+  builtin?: boolean;
+} & (
   | { type: "m3u-url"; url: string }
   | { type: "m3u-file"; fileName: string }
   | { type: "xtream"; server: string; username: string; password: string }
@@ -168,3 +174,18 @@ export const watched = (p: Progress | undefined) => !!p && p.d > 0 && p.t / p.d 
 /** The sidebar folded down to its icons (a viewer's choice, kept across lists). */
 export const loadSidebarCollapsed = () => read<boolean>("sidebar-collapsed", false);
 export const saveSidebarCollapsed = (collapsed: boolean) => write("sidebar-collapsed", collapsed);
+
+/** Favourites, recents and progress of lists no longer here (they can hold logins in their links): gone. */
+export function sweepOrphans(listIds: string[]) {
+  const keep = new Set(listIds);
+  const orphan = (key: string) => {
+    const m = /^(fav|recent|progress):(.+)$/.exec(key);
+    return !!m && !keep.has(m[2]!);
+  };
+  for (const key of [...memory.keys()]) if (orphan(key)) memory.delete(key);
+  try {
+    for (const full of Object.keys(localStorage)) if (full.startsWith(PREFIX) && orphan(full.slice(PREFIX.length))) localStorage.removeItem(full);
+  } catch {
+    // memory only
+  }
+}

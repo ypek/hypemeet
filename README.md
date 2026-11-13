@@ -186,6 +186,10 @@ dele em `PLUGINS`), porque o servidor dele carrega os streams:
   passam pelo proxy, com cache. Os logos são marcas dos canais e só são linkados, não redistribuídos.
   *This product uses the TMDB API but is not endorsed or certified by TMDB.*
 
+**Lista da sala:** `HYPETV_LISTS` (nas envs do serviço no Dokploy, nunca no git) dá a todo mundo uma lista
+já pronta, com o login guardado só no servidor do plugin: o navegador fala com `api/x/<id>` e nunca vê usuário
+nem senha. Quem tiver o endereço do plugin assiste por essa conta.
+
 Na atividade do Discord ele precisa do URL mapping `/plugins/hypetv` → domínio dele, e lá as listas valem só
 pela sessão (origem opaca, sem armazenamento). Desenvolvimento: veja [`plugins/hypetv/README.md`](plugins/hypetv/README.md).
 

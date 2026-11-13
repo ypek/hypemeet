@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PlaylistConfig } from "../lib/storage";
 import type { XtreamAccount } from "../lib/xtream";
 
-const kindLabel = (c: PlaylistConfig) => (c.type === "xtream" ? "Xtream Codes" : c.type === "m3u-file" ? "Arquivo M3U" : "Link M3U");
+const kindLabel = (c: PlaylistConfig) => (c.builtin ? "Lista da sala" : c.type === "xtream" ? "Xtream Codes" : c.type === "m3u-file" ? "Arquivo M3U" : "Link M3U");
 
 function accountLine(account?: XtreamAccount) {
   if (!account) return null;
@@ -93,6 +93,7 @@ export function PlaylistMenu({
           <button type="button" role="menuitem" onClick={() => (onAdd(), setOpen(false))} className={item}>
             <Plus className="size-4 shrink-0 text-soft" /> Adicionar outra lista
           </button>
+          {!active.builtin && (
           <button
             type="button"
             role="menuitem"
@@ -101,6 +102,7 @@ export function PlaylistMenu({
           >
             <Trash2 className="size-4 shrink-0" /> {confirm ? "Toque de novo pra remover" : "Remover esta lista"}
           </button>
+          )}
         </div>
       )}
     </div>
