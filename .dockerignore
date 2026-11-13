@@ -5,3 +5,5 @@ data
 desktop
 *.tsbuildinfo
 .env
+plugins
+**/.env*

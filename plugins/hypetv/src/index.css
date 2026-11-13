@@ -1,0 +1,144 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/dm-sans";
+@import "@fontsource/dm-mono";
+
+/* The HypeMeet theme as the app ships it (hypemeet.mihawkdev.com): neutral graphite, one lilac accent, sticker borders. */
+@theme {
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "DM Sans Variable", ui-sans-serif, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+
+  --color-canvas: #131418;
+  --color-panel: #1a1c22;
+  --color-surface: #23262e;
+  --color-surface-hi: #2e313b;
+  --color-line: #383b47;
+  --color-accent: #9070ff;
+  --color-accent-hi: #b1a0ff;
+  --color-on-accent: #121019;
+  --color-ink: #f2f3f7;
+  --color-soft: #a4a9b8;
+  --color-scrim: #131418bd;
+  /* Functional only: leave, errors, LIVE. */
+  --color-danger: #ff5c6f;
+  --color-warn: #ffb547;
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+
+  --shadow-float: 0 1px 0 #00000059, 0 16px 32px -18px #000c;
+  --shadow-sticker: 0 1px 0 #00000059, 0 6px 12px -8px #000000b3;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-fade-in: fade-in 260ms var(--ease-out-expo);
+  --animate-pop: pop 320ms var(--ease-out-expo);
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    overflow: hidden;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+    color: var(--color-ink);
+  }
+  input {
+    caret-color: var(--color-accent-hi);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent-hi);
+    outline-offset: 2px;
+  }
+  html {
+    scrollbar-color: var(--color-surface-hi) var(--color-canvas);
+  }
+}
+
+@utility type-heading-sm {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+@utility type-link {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+@utility type-link-sm {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+@utility type-label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* The app's raised "sticker" edge: 2px line border plus a short drop. */
+@utility sticker {
+  border: 2px solid var(--color-line);
+  box-shadow: var(--shadow-sticker);
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-hi) transparent;
+}
+
+/* Range input as a slim accent slider; --fill is set inline (0–100%). */
+@utility range-accent {
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--color-accent) 0, var(--color-accent-hi) var(--fill, 50%), #ffffff2e var(--fill, 50%));
+  outline: none;
+  cursor: pointer;
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--color-ink);
+    box-shadow: 0 1px 6px #0006;
+  }
+  &::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-ink);
+  }
+}

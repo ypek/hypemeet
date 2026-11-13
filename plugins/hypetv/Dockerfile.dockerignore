@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/dist
+**/.env*
+data
+desktop
+src
+server
+public
+scripts
+plugins/hypetv/server/*.test.ts
+plugins/hypetv/dev
