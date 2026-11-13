@@ -55,15 +55,15 @@ export interface Attached {
 }
 
 /**
- * Wires one attempt to the video. `onFatal` fires at most once, with a reason to show; the caller moves on
- * to the next attempt.
+ * Wires one attempt to the video. `onFatal` fires at most once, with a reason to show (and the browser's own
+ * words for it, `detail`, for the error screen and the report); the caller moves on to the next attempt.
  */
-export async function attach(video: HTMLVideoElement, attempt: Attempt, play: Playable, onFatal: (reason: string) => void): Promise<Attached> {
+export async function attach(video: HTMLVideoElement, attempt: Attempt, play: Playable, onFatal: (reason: string, detail?: string) => void): Promise<Attached> {
   const shared = play.live && attempt.engine === "mpegts";
   const src = attempt.proxied ? relay("stream", attempt.url, play.headers, shared) : attempt.url;
   let failed = false;
-  const fatal = (reason: string) => {
-    if (!failed) (failed = true), onFatal(reason);
+  const fatal = (reason: string, detail?: string) => {
+    if (!failed) (failed = true), onFatal(reason, detail);
   };
 
   if (attempt.engine === "hls") {
@@ -89,7 +89,11 @@ export async function attach(video: HTMLVideoElement, attempt: Attempt, play: Pl
         hls.recoverMediaError();
         return;
       }
-      fatal(data.type === HlsClass.ErrorTypes.NETWORK_ERROR ? "O servidor não entregou o canal" : "O vídeo veio num formato que não deu pra tocar");
+      const status = (data.response as { code?: number } | undefined)?.code;
+      fatal(
+        data.type === HlsClass.ErrorTypes.NETWORK_ERROR ? "O servidor não entregou o canal" : "O vídeo veio num formato que não deu pra tocar",
+        `hls ${data.type}/${data.details}${status ? ` ${status}` : ""}`,
+      );
     });
     hls.loadSource(src);
     hls.attachMedia(video);
@@ -121,8 +125,11 @@ export async function attach(video: HTMLVideoElement, attempt: Attempt, play: Pl
         autoCleanupMinBackwardDuration: 30,
       },
     );
-    player.on(mpegts.Events.ERROR, (type: string) =>
-      fatal(type === mpegts.ErrorTypes.NETWORK_ERROR ? "O servidor não entregou o canal" : "O vídeo veio num formato que não deu pra tocar"),
+    player.on(mpegts.Events.ERROR, (type: string, detail: string, info?: { code?: number; msg?: string }) =>
+      fatal(
+        type === mpegts.ErrorTypes.NETWORK_ERROR ? "O servidor não entregou o canal" : "O vídeo veio num formato que não deu pra tocar",
+        `mpegts ${type}/${detail}${info?.code ? ` ${info.code}` : ""}${info?.msg ? ` ${info.msg}` : ""}`,
+      ),
     );
     player.attachMediaElement(video);
     player.load();
@@ -139,14 +146,15 @@ export async function attach(video: HTMLVideoElement, attempt: Attempt, play: Pl
   return native(video, src, fatal);
 }
 
-function native(video: HTMLVideoElement, src: string, fatal: (reason: string) => void): Attached {
+function native(video: HTMLVideoElement, src: string, fatal: (reason: string, detail?: string) => void): Attached {
   const probe = new AbortController();
   const onError = () => {
     const code = video.error?.code;
-    if (code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return fatal("Não deu pra carregar o vídeo");
+    const detail = `video ${code ?? "?"} ${video.error?.message || ""}`.trim();
+    if (code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return fatal("Não deu pra carregar o vídeo", detail);
     // The browser says "unsupported source" for an error page too (the list refused it, the server couldn't reach it):
     // ask our server what happened before blaming the format.
-    void whyNot(src, probe.signal).then((why) => !probe.signal.aborted && fatal(why ?? "O navegador não abre esse formato"));
+    void whyNot(src, probe.signal).then((why) => !probe.signal.aborted && fatal(why ?? "O navegador não abre esse formato", detail));
   };
   video.addEventListener("error", onError);
   video.src = src;

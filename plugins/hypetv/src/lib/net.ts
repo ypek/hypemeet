@@ -10,6 +10,33 @@ export class ListError extends Error {}
 /** Our own server (a list it holds, api/x/…): fetched as is, never relayed through itself. */
 export const isOwn = (url: string) => url.startsWith(API().href);
 
+/**
+ * A source as the error report shows it, never with a login: our own calls by their path (server lists only carry
+ * "-"), what our relay fetches by the target's host, anything else by its host.
+ */
+export function describeSrc(url: string, base = API()): string {
+  try {
+    const u = new URL(url, base);
+    if (u.href.startsWith(base.href)) {
+      const path = u.href.slice(base.href.length).replace(/\?.*$/, "");
+      const target = u.searchParams.get("u");
+      return target ? `${path}→${new URL(target).host}` : path;
+    }
+    return u.host;
+  } catch {
+    return "?";
+  }
+}
+
+/** Tells our server what went wrong in this browser (the log is the only way to see it in someone else's Discord). */
+export function report(data: Record<string, unknown>): void {
+  try {
+    void fetch(new URL("report", API()), { method: "POST", body: JSON.stringify(data), headers: { "content-type": "application/json" }, keepalive: true }).catch(() => undefined);
+  } catch {
+    // never in the way of the player
+  }
+}
+
 export function relay(kind: "fetch" | "stream" | "img", url: string, headers?: StreamHeaders, live = false): string {
   if (isOwn(url)) return url;
   const target = new URL(kind, API());

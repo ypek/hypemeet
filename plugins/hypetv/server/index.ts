@@ -282,6 +282,21 @@ async function compress(req: Request, res: Response): Promise<Response> {
 /** The lists everyone starts with (lists.ts); in Dokploy's env or plugins/hypetv/.env.local, never in git. */
 const serverLists = parseLists(process.env.HYPETV_LISTS);
 
+/**
+ * What a viewer's player saw go wrong (Player.tsx sends the browser's own words for each attempt): logged, since
+ * there's no other way to see what happens in someone else's Discord. At most 30 a minute; never a login (the page
+ * leaves them out, and query strings and the server lists' logins are cut here too).
+ */
+let reports = 0;
+setInterval(() => (reports = 0), 60_000).unref?.();
+async function clientReport(req: Request): Promise<Response> {
+  if (++reports > 30) return new Response(null, { status: 429, headers: CORS });
+  let text = (await req.text().catch(() => "")).slice(0, 4000);
+  for (const list of serverLists) text = scrubLogin(text, list);
+  console.log(`report ${text.replace(/\?[^\s"\\]*/g, "?…").replace(/\s+/g, " ")}`);
+  return new Response(null, { status: 204, headers: CORS });
+}
+
 /** api/x/<id>/<path>: one of those lists, as an Xtream panel whose login only this server knows. */
 async function serverList(req: Request, url: URL): Promise<Response> {
   const m = /^\/api\/x\/(\d+)\/(.+)$/.exec(url.pathname);
@@ -339,6 +354,7 @@ const server = Bun.serve({
     if (url.pathname.startsWith("/tv/api/")) url = new URL(url.pathname.slice(3) + url.search, url);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (req.method === "POST" && url.pathname === "/api/art") return resolveArt(req);
+    if (req.method === "POST" && url.pathname === "/api/report") return clientReport(req);
     if (req.method !== "GET" && req.method !== "HEAD") return fail("Método não suportado", 405);
     switch (url.pathname) {
       case "/api/fetch":

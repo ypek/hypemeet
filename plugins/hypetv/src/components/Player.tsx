@@ -1,6 +1,7 @@
 import { AlertTriangle, ChevronRight, Maximize, Minimize, Pause, PictureInPicture2, Play, RectangleHorizontal, RotateCcw, Shrink, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { attach, attemptsFor, type Attached } from "../lib/engine";
+import { describeSrc, insideDiscord, report as reportFailure } from "../lib/net";
 import { loadVolume, saveVolume } from "../lib/storage";
 import { isTv, onBack, remoteKey } from "../lib/tv";
 import type { Playable } from "../lib/types";
@@ -113,6 +114,8 @@ export function Player({
   const [phase, setPhase] = useState<Phase>("idle");
   const [status, setStatus] = useState("");
   const [reason, setReason] = useState("");
+  /** What the browser said for each attempt (its own words), shown small under the reason. */
+  const [detail, setDetail] = useState("");
   const [retry, setRetry] = useState(0);
   const [paused, setPaused] = useState(true);
   const [time, setTime] = useState(0);
@@ -168,18 +171,24 @@ export function Player({
     const list = attemptsFor(play);
     let index = 0;
     let lastReason = "Não deu pra abrir";
+    // Each failed attempt in the browser's words: for the error screen and the report to the server.
+    const trail: string[] = [];
     let lastPos = 0;
     let retries = 0;
 
-    const next = async (why?: string) => {
+    const next = async (why?: string, detail?: string) => {
       if (cancelled) return;
       if (why) lastReason = why;
+      const failedAttempt = index > 0 ? list[index - 1] : undefined;
+      if (failedAttempt && why) trail.push(`${failedAttempt.engine}${failedAttempt.proxied ? "+relay" : ""} ${describeSrc(failedAttempt.url)}: ${detail ?? why}`);
       clearTimeout(stall);
       current?.destroy();
       current = null;
       if (index >= list.length) {
         setPhase("error");
         setReason(lastReason);
+        setDetail(trail.join("\n"));
+        reportFailure({ what: "player", live: play.live, started, discord: insideDiscord(), reason: lastReason, attempts: trail, ua: navigator.userAgent });
         return;
       }
       // Already playing a film and the connection dropped (a slow link, a long wait after a jump): the same source
@@ -194,7 +203,7 @@ export function Player({
       setPhase("loading");
       setStatus(resumeFrom ? "Reconectando…" : index > 1 ? (attempt.proxied ? "Tentando pelo proxy…" : "Tentando de outro jeito…") : play.live ? "Sintonizando…" : "Carregando…");
       try {
-        current = await attach(v, attempt, play, (r) => void next(r));
+        current = await attach(v, attempt, play, (r, d) => void next(r, d));
       } catch {
         void next("O player não abriu");
         return;
@@ -480,6 +489,7 @@ export function Player({
             <AlertTriangle className="size-9 text-warn" />
             <p className="type-link">{reason}</p>
             <p className="text-sm text-soft">Pode ser o canal fora do ar, o limite de conexões da sua lista ou um formato que o navegador não abre.</p>
+            {detail && <p className="max-w-full whitespace-pre-line break-words font-mono text-[11px] leading-snug text-soft/70">{detail}</p>}
             <Button variant="primary" size="sm" onClick={() => setRetry((n) => n + 1)} className="mt-1">
               <RotateCcw className="size-4" /> Tentar de novo
             </Button>
