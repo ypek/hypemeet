@@ -1,0 +1,7 @@
+{
+  "id": "hypetv",
+  "name": "HypeTv",
+  "description": "Sua lista M3U ou Xtream Codes na sala: canais ao vivo, filmes e séries pra assistir junto.",
+  "icon": "icon.svg",
+  "entry": "./"
+}

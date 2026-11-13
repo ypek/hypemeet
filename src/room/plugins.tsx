@@ -282,7 +282,9 @@ export function PluginView({ room, info, session, onMinimize, onClose, onToast, 
         title={plugin.name}
         // Its own origin keeps it away from the room's: what it can do is what the bridge above allows.
         sandbox={`allow-scripts ${opaque ? "" : "allow-same-origin "}allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads`}
-        allow="clipboard-read; clipboard-write"
+        // Video plugins (IPTV) play with sound when the room hands over a channel, and go full screen or float.
+        allow="clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture"
+        allowFullScreen
         className="min-h-0 w-full flex-1 border-0 bg-white"
       />
     </div>

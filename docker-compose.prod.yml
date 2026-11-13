@@ -1,8 +1,8 @@
 # Production stack (Dokploy). Env: LIVEKIT_DOMAIN, LIVEKIT_NODE_IP, LIVEKIT_API_KEY, LIVEKIT_API_SECRET,
 # and for the Discord Activity: DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, PUBLIC_URL (optional);
-# PLUGINS (optional): base URLs of plugins the rooms can open, comma-separated.
+# PLUGINS (optional): base URLs of plugins the rooms can open, comma-separated (e.g. the hypetv service below).
 # YTDLP_COOKIES (optional): a YouTube cookies.txt for the Activity's YouTube relay, e.g. /app/data/youtube-cookies.txt.
-# Domains (HTTPS via Traefik): app → port 3001, livekit → port 7880 (signaling over wss).
+# Domains (HTTPS via Traefik): app → port 3001, livekit → port 7880 (signaling over wss), hypetv → port 3002.
 # Media bypasses Traefik: 7881/tcp (ICE over TCP) and 7882/udp (UDP mux) must be open on the host.
 services:
   app:
@@ -23,6 +23,21 @@ services:
       - 8.8.8.8
     volumes:
       - hypemeet-data:/app/data
+
+  # HypeTv (plugins/hypetv): IPTV lists in the room. Its relay carries the streams, so it runs apart from the app.
+  # TMDB_API_KEY (optional) finds posters lists lack; HYPETV_HOSTS (optional) limits the relay to those IPTV hosts.
+  hypetv:
+    build:
+      context: .
+      dockerfile: plugins/hypetv/Dockerfile
+    restart: unless-stopped
+    environment:
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      HYPETV_HOSTS: ${HYPETV_HOSTS:-}
+      HYPETV_MAX_STREAMS: ${HYPETV_MAX_STREAMS:-40}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
 
   livekit:
     image: livekit/livekit-server:v1.13.7

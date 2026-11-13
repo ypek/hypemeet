@@ -164,6 +164,31 @@ precisa:
 - responder `Access-Control-Allow-Origin: *` e, se usar `frame-ancestors`, aceitar
   `https://*.discordsays.com https://discord.com https://*.discord.com`.
 
+### HypeTv (IPTV)
+
+[`plugins/hypetv`](plugins/hypetv) é o [IPTVnator](https://github.com/4gray/iptvnator) (MIT) refeito como
+plugin da sala, no visual do HypeMeet: cada um carrega a própria lista **Xtream Codes**, **link M3U** ou
+**arquivo M3U** e navega por canais ao vivo, filmes e séries (com guia, favoritos, recentes e "continuar
+assistindo"). Quem quiser **passa pra sala**: quem está com o HypeTv aberto vê o convite e assiste junto, com
+play, pause e posição dos filmes sincronizados pelo plugin (tópico `plugin:hypetv`).
+
+Roda como serviço próprio (`hypetv` no `docker-compose.prod.yml`, porta 3002, domínio próprio, com o endereço
+dele em `PLUGINS`), porque o servidor dele carrega os streams:
+
+- **Proxy:** listas, API Xtream e streams passam por ele (os painéis não mandam CORS e quase todos são HTTP).
+  Só vai a endereços públicos, conferindo cada redirecionamento; `HYPETV_HOSTS` restringe aos hosts listados e
+  `HYPETV_MAX_STREAMS` limita os streams abertos.
+- **Um canal, uma conexão:** um canal ao vivo em MPEG-TS é repartido entre todo mundo da sala que está nele,
+  então listas que só aceitam 1 conexão funcionam pra sala inteira. Filmes abrem uma conexão por pessoa.
+- **Logos e capas:** logo oficial dos canais pelo [tv-logos](https://github.com/tv-logo/tv-logos) (via
+  jsDelivr) e pelo [iptv-org](https://github.com/iptv-org/database), e a Wikipedia pro resto; capas de filmes e
+  séries pelo TMDB (`TMDB_API_KEY`, opcional) ou pela Wikipedia. Imagens de hosts que bloqueiam hotlink (imgur)
+  passam pelo proxy, com cache. Os logos são marcas dos canais e só são linkados, não redistribuídos.
+  *This product uses the TMDB API but is not endorsed or certified by TMDB.*
+
+Na atividade do Discord ele precisa do URL mapping `/plugins/hypetv` → domínio dele, e lá as listas valem só
+pela sessão (origem opaca, sem armazenamento). Desenvolvimento: veja [`plugins/hypetv/README.md`](plugins/hypetv/README.md).
+
 ## Atividade do Discord
 
 O HypeMeet também roda **dentro do Discord** como atividade (o 🚀 do canal de voz):

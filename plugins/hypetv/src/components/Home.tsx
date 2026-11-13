@@ -1,0 +1,229 @@
+import { Clapperboard, Film, Heart, History, Play, Tv } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
+import { inProgress, type Progress } from "../lib/storage";
+import type { Catalog, CatalogItem, Kind } from "../lib/types";
+import { Art, LiveBadge, Spinner, Wordmark } from "./ui";
+
+const RAIL_MAX = 24;
+
+/** Every loaded item by key, across kinds (favourites and recents can be any of them). */
+export function useIndex(catalog: Catalog) {
+  return useMemo(() => {
+    const map = new Map<string, CatalogItem>();
+    for (const kind of ["live", "movie", "series"] as const) for (const item of catalog[kind]?.items ?? []) if (!map.has(item.key)) map.set(item.key, item);
+    return map;
+  }, [catalog]);
+}
+
+function Rail({ title, icon: Icon, children, loading }: { title: string; icon: typeof Film; children: ReactNode; loading?: boolean }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 px-5 font-display text-lg font-extrabold tracking-[-0.01em] sm:px-7">
+        <Icon className="size-5 text-accent-hi" /> {title}
+        {loading && <Spinner className="size-4 text-soft" />}
+      </h2>
+      <div className="scrollbar-thin flex snap-x gap-3 overflow-x-auto px-5 pb-2 sm:px-7">{children}</div>
+    </section>
+  );
+}
+
+export function PosterTile({ item, progress, onOpen, width = "w-32" }: { item: CatalogItem; progress?: Progress; onOpen: () => void; width?: string }) {
+  return (
+    <button type="button" onClick={onOpen} className={`group/tile flex shrink-0 snap-start flex-col gap-1.5 text-left ${width}`}>
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border-2 border-line transition group-hover/tile:-translate-y-0.5 group-hover/tile:border-accent">
+        <Art kind={item.kind} name={item.name} src={item.logo} year={item.info?.year} shape="poster" className="size-full" />
+        {progress && (
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-black/60">
+            <span className="block h-full bg-accent" style={{ width: `${Math.min(100, (progress.t / progress.d) * 100)}%` }} />
+          </span>
+        )}
+      </div>
+      <span className="line-clamp-2 text-[13px] leading-tight font-bold">{item.name}</span>
+    </button>
+  );
+}
+
+export function ChannelTile({ item, onPlay, width = "w-40" }: { item: CatalogItem; onPlay: () => void; width?: string }) {
+  return (
+    <button type="button" onClick={onPlay} className={`group/tile flex shrink-0 snap-start flex-col gap-1.5 text-left ${width}`}>
+      <div className="relative aspect-video w-full overflow-hidden rounded-md border-2 border-line bg-surface-hi transition group-hover/tile:-translate-y-0.5 group-hover/tile:border-accent">
+        <Art kind="live" name={item.name} src={item.logo} tvgId={item.tvgId} shape="logo" className="size-full p-3!" />
+        <span className="absolute top-1.5 left-1.5">
+          <LiveBadge />
+        </span>
+      </div>
+      <span className="truncate text-[13px] font-bold">{item.name}</span>
+      <span className="-mt-1 truncate text-[11px] text-soft">{item.group}</span>
+    </button>
+  );
+}
+
+/** "Continuar assistindo": an episode or film from the progress record, resumed straight away. */
+function ResumeTile({ entry, onResume }: { entry: Progress; onResume: () => void }) {
+  const kind: Kind = entry.owner?.kind ?? "movie";
+  const name = entry.owner?.name ?? entry.play.title;
+  const left = Math.max(1, Math.round((entry.d - entry.t) / 60));
+  return (
+    <button type="button" onClick={onResume} className="group/tile flex w-60 shrink-0 snap-start flex-col gap-1.5 text-left">
+      <div className="relative aspect-video w-full overflow-hidden rounded-md border-2 border-line transition group-hover/tile:-translate-y-0.5 group-hover/tile:border-accent">
+        <Art kind={kind} name={name} src={entry.play.logo ?? entry.owner?.poster} shape="still" className="size-full" />
+        <span className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover/tile:opacity-100">
+          <span className="grid size-11 place-items-center rounded-full border-2 border-accent-hi bg-accent text-on-accent shadow-sticker">
+            <Play className="size-5 fill-current" />
+          </span>
+        </span>
+        <span className="absolute inset-x-0 bottom-0 h-1.5 bg-black/60">
+          <span className="block h-full bg-accent" style={{ width: `${Math.min(100, (entry.t / entry.d) * 100)}%` }} />
+        </span>
+      </div>
+      <span className="truncate text-[13px] font-bold">{name}</span>
+      <span className="-mt-1 truncate text-[11px] text-soft">
+        {entry.owner?.kind === "series" ? `${entry.play.title.split(" · ").pop()} · ` : ""}faltam {left} min
+      </span>
+    </button>
+  );
+}
+
+/** IPTVnator's dashboard: rails of what's in progress, recent, favourite and new on this list. */
+export function Home({
+  catalog,
+  progress,
+  favorites,
+  recents,
+  loading,
+  onOpen,
+  onPlayChannel,
+  onResume,
+  listName,
+}: {
+  catalog: Catalog;
+  progress: Record<string, Progress>;
+  favorites: Set<string>;
+  recents: string[];
+  /** Kinds still loading (Xtream films and series are big). */
+  loading: Kind[];
+  onOpen: (item: CatalogItem) => void;
+  onPlayChannel: (item: CatalogItem) => void;
+  onResume: (key: string, entry: Progress) => void;
+  listName: string;
+}) {
+  const index = useIndex(catalog);
+  const resume = Object.entries(progress)
+    .filter(([, p]) => inProgress(p))
+    .sort((a, b) => b[1].at - a[1].at)
+    // One per show: its latest episode.
+    .filter(([, p], i, all) => !p.owner || p.owner.kind !== "series" || all.findIndex(([, q]) => q.owner?.key === p.owner!.key) === i)
+    .slice(0, RAIL_MAX);
+  const recentChannels = recents.map((k) => index.get(k)).filter((i): i is CatalogItem => i?.kind === "live").slice(0, RAIL_MAX);
+  const favs = [...favorites].map((k) => index.get(k)).filter((i): i is CatalogItem => !!i).slice(0, RAIL_MAX);
+  const newest = (kind: Kind) =>
+    [...(catalog[kind]?.items ?? [])]
+      .filter((i) => i.info?.added)
+      .sort((a, b) => (b.info!.added ?? 0) - (a.info!.added ?? 0))
+      .slice(0, RAIL_MAX);
+  const newMovies = newest("movie");
+  const newSeries = newest("series");
+  const open = (item: CatalogItem) => (item.kind === "live" ? onPlayChannel(item) : onOpen(item));
+  const tile = (item: CatalogItem) =>
+    item.kind === "live" ? <ChannelTile key={item.key} item={item} onPlay={() => onPlayChannel(item)} /> : <PosterTile key={item.key} item={item} progress={progress[item.key]} onOpen={() => open(item)} />;
+  const nothing = !resume.length && !recentChannels.length && !favs.length && !newMovies.length && !newSeries.length;
+
+  return (
+    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto py-6">
+      <header className="px-5 sm:px-7">
+        <Wordmark className="text-[30px]" />
+        <p className="mt-2 text-sm text-soft">
+          {listName} · {[catalog.live && `${catalog.live.items.length.toLocaleString("pt-BR")} canais`, catalog.movie && `${catalog.movie.items.length.toLocaleString("pt-BR")} filmes`, catalog.series && `${catalog.series.items.length.toLocaleString("pt-BR")} séries`].filter(Boolean).join(" · ")}
+        </p>
+      </header>
+      {resume.length > 0 && (
+        <Rail title="Continuar assistindo" icon={Play}>
+          {resume.map(([key, entry]) => (
+            <ResumeTile key={key} entry={entry} onResume={() => onResume(key, entry)} />
+          ))}
+        </Rail>
+      )}
+      {recentChannels.length > 0 && (
+        <Rail title="Canais que você viu" icon={History}>
+          {recentChannels.map(tile)}
+        </Rail>
+      )}
+      {favs.length > 0 && (
+        <Rail title="Favoritos" icon={Heart}>
+          {favs.map(tile)}
+        </Rail>
+      )}
+      {(newMovies.length > 0 || loading.includes("movie")) && (
+        <Rail title="Filmes adicionados recentemente" icon={Film} loading={loading.includes("movie")}>
+          {newMovies.map(tile)}
+        </Rail>
+      )}
+      {(newSeries.length > 0 || loading.includes("series")) && (
+        <Rail title="Séries novas" icon={Clapperboard} loading={loading.includes("series")}>
+          {newSeries.map(tile)}
+        </Rail>
+      )}
+      {nothing && !loading.length && (
+        <div className="mx-5 grid place-items-center rounded-xl border-2 border-dashed border-line p-10 text-center sm:mx-7">
+          <Tv className="size-8 text-accent-hi" />
+          <p className="mt-3 font-display text-lg font-extrabold">Comece por um canal</p>
+          <p className="mt-1 max-w-sm text-sm text-soft">O que você assistir, favoritar e começar a ver aparece aqui.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Favourites or recents of every kind: channels, films, shows. */
+export function Collection({
+  title,
+  keys,
+  catalog,
+  progress,
+  loading,
+  onOpen,
+  onPlayChannel,
+  empty,
+}: {
+  title: string;
+  keys: string[];
+  catalog: Catalog;
+  progress: Record<string, Progress>;
+  loading: Kind[];
+  onOpen: (item: CatalogItem) => void;
+  onPlayChannel: (item: CatalogItem) => void;
+  empty: string;
+}) {
+  const index = useIndex(catalog);
+  const items = keys.map((k) => index.get(k)).filter((i): i is CatalogItem => !!i);
+  const of = (kind: Kind) => items.filter((i) => i.kind === kind);
+  const groups = [
+    { kind: "live" as const, label: "Canais", icon: Tv },
+    { kind: "movie" as const, label: "Filmes", icon: Film },
+    { kind: "series" as const, label: "Séries", icon: Clapperboard },
+  ].filter((g) => of(g.kind).length);
+  return (
+    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto py-6">
+      <h1 className="flex items-center gap-3 px-5 font-display text-[28px] font-extrabold tracking-[-0.02em] sm:px-7">
+        {title} {loading.length > 0 && <Spinner className="size-5 text-soft" />}
+      </h1>
+      {groups.map(({ kind, label, icon: Icon }) => (
+        <section key={kind} className="flex flex-col gap-3 px-5 sm:px-7">
+          <h2 className="flex items-center gap-2 font-display text-lg font-extrabold">
+            <Icon className="size-5 text-accent-hi" /> {label}
+          </h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-3">
+            {of(kind).map((item) =>
+              kind === "live" ? (
+                <ChannelTile key={item.key} item={item} onPlay={() => onPlayChannel(item)} width="w-full" />
+              ) : (
+                <PosterTile key={item.key} item={item} progress={progress[item.key]} onOpen={() => onOpen(item)} width="w-full" />
+              ),
+            )}
+          </div>
+        </section>
+      ))}
+      {!groups.length && !loading.length && <p className="px-5 text-sm text-soft sm:px-7">{empty}</p>}
+    </div>
+  );
+}
