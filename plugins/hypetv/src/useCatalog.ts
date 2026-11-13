@@ -23,6 +23,24 @@ export interface CatalogState {
 
 const reasonOf = (err: unknown) => (err instanceof ListError ? err.message : "Não deu pra carregar a lista");
 
+/** An Xtream section kept in IndexedDB, with when it came from the panel. */
+type Kept = { at: number; section: Section };
+/** A kept copy younger than this is used as it is (lists change a few times a day; "Atualizar lista" forces it). */
+export const KEPT_FRESH_MS = 6 * 60 * 60 * 1000;
+
+/** A kept copy, or null if there's none or it's damaged. Copies from before the date was kept count as old. */
+export function readKept(text: string | undefined): Kept | null {
+  if (!text) return null;
+  try {
+    const value = JSON.parse(text) as Partial<Kept> & Partial<Section>;
+    if (value.section && typeof value.at === "number") return value as Kept;
+    if (Array.isArray(value.items)) return { at: 0, section: value as Section };
+  } catch {
+    // damaged: wait for the panel
+  }
+  return null;
+}
+
 /** Reads a list into a catalogue; M3U texts are kept (IndexedDB) so reopening doesn't download it again. */
 export async function loadM3U(config: PlaylistConfig, fresh: boolean, signal?: AbortSignal): Promise<Catalog> {
   let text = fresh ? undefined : await getText(config.id);
@@ -71,42 +89,34 @@ export function useCatalog(config: PlaylistConfig | null): CatalogState {
     return () => abort.abort();
   }, [config, round]);
 
-  // Xtream catalogues are big (tens of MB of JSON): the copy kept from last time shows at once, the panel's
-  // current one replaces it when it arrives. "Atualizar lista" skips the copy.
+  // Xtream catalogues are big (the films alone are ~17 MB of JSON): the copy kept from last time shows at once. A
+  // recent copy is enough (no download fighting the video for the line); an older one is replaced when the panel's
+  // arrives. "Atualizar lista" skips the copy.
   const loadSection = useCallback((kind: Kind) => {
     const xtream = xtreamRef.current;
     if (!xtream || inflight.current.has(kind)) return;
     const abort = new AbortController();
     inflight.current.set(kind, abort);
     const cacheKey = `xt:${listId.current}:${kind}`;
-    let cached = false;
-    let arrived = false;
     const show = (section: Section) =>
       setState((s) => ({ ...s, catalog: { ...s.catalog, [kind]: section }, sections: { ...s.sections, [kind]: { status: "ready" } } }));
     setState((s) => ({ ...s, sections: { ...s.sections, [kind]: { status: "loading" } } }));
-    if (!fresh.current)
-      void getText(cacheKey).then((text) => {
-        if (!text || arrived || abort.signal.aborted || xtreamRef.current !== xtream) return;
-        try {
-          show(JSON.parse(text) as Section);
-          cached = true;
-        } catch {
-          // a damaged copy: wait for the panel
-        }
-      });
-    xtream.section(kind, abort.signal).then(
-      (section) => {
-        arrived = true;
+    void (async () => {
+      const kept = fresh.current ? null : readKept(await getText(cacheKey).catch(() => undefined));
+      if (abort.signal.aborted || xtreamRef.current !== xtream) return;
+      if (kept) show(kept.section);
+      if (kept && Date.now() - kept.at < KEPT_FRESH_MS) return;
+      try {
+        const section = await xtream.section(kind, abort.signal);
         if (xtreamRef.current !== xtream) return;
         show(section);
-        void putText(cacheKey, JSON.stringify(section));
-      },
-      (err: unknown) => {
+        void putText(cacheKey, JSON.stringify({ at: Date.now(), section } satisfies Kept));
+      } catch (err) {
         inflight.current.delete(kind);
-        if (abort.signal.aborted || xtreamRef.current !== xtream || cached) return;
+        if (abort.signal.aborted || xtreamRef.current !== xtream || kept) return;
         setState((s) => ({ ...s, sections: { ...s.sections, [kind]: { status: "error", error: reasonOf(err) } } }));
-      },
-    );
+      }
+    })();
   }, []);
 
   const refresh = useCallback(() => setRound((r) => ({ n: r.n + 1, fresh: true })), []);

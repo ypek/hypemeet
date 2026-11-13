@@ -4,7 +4,7 @@
  * the browser and accept the relay, so a link becomes a list of attempts tried in order.
  */
 import type Hls from "hls.js";
-import { blockedAsMixed, relay } from "./net";
+import { blockedAsMixed, isOwn, relay } from "./net";
 import type { Playable } from "./types";
 
 export type EngineName = "hls" | "mpegts" | "native";
@@ -140,17 +140,40 @@ export async function attach(video: HTMLVideoElement, attempt: Attempt, play: Pl
 }
 
 function native(video: HTMLVideoElement, src: string, fatal: (reason: string) => void): Attached {
+  const probe = new AbortController();
   const onError = () => {
     const code = video.error?.code;
-    fatal(code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED ? "O navegador não abre esse formato" : "Não deu pra carregar o vídeo");
+    if (code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return fatal("Não deu pra carregar o vídeo");
+    // The browser says "unsupported source" for an error page too (the list refused it, the server couldn't reach it):
+    // ask our server what happened before blaming the format.
+    void whyNot(src, probe.signal).then((why) => !probe.signal.aborted && fatal(why ?? "O navegador não abre esse formato"));
   };
   video.addEventListener("error", onError);
   video.src = src;
   return {
     destroy: () => {
+      probe.abort();
       video.removeEventListener("error", onError);
       video.removeAttribute("src");
       video.load();
     },
   };
+}
+
+/** For a source through our server: its error message, or null when it does send a video (then it is the format). */
+export async function whyNot(src: string, signal: AbortSignal): Promise<string | null> {
+  if (!isOwn(src)) return null;
+  try {
+    const res = await fetch(src, { signal, cache: "no-store" });
+    const type = res.headers.get("content-type") ?? "";
+    if (res.ok && !type.includes("json") && !type.includes("html")) {
+      void res.body?.cancel();
+      return null;
+    }
+    const body = await res.text();
+    const error = type.includes("json") ? (JSON.parse(body) as { error?: string }).error : undefined;
+    return error ?? (res.ok ? "A lista mandou uma página no lugar do vídeo" : `O servidor da lista respondeu ${res.status}`);
+  } catch {
+    return null;
+  }
 }

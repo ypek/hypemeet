@@ -16,6 +16,7 @@ import { createArt, type ArtKind } from "./art";
 import { tmpdir } from "node:os";
 import { createFanout } from "./fanout";
 import { createVodCache, isVodUrl } from "./vodcache";
+import { catalogKey, createCatalogCache } from "./catalogcache";
 import { parseLists, publicLists, scrubLogin, upstreamFor } from "./lists";
 import { BlockedError, fetchPublic, looksLikeHls, rewriteHls, upstreamHeaders, type ProxyPolicy } from "./proxy";
 
@@ -62,11 +63,13 @@ function target(params: URLSearchParams): URL | null {
   }
 }
 
-function failure(err: unknown): Response {
+/** `url`: what was asked for; only its host is logged (paths carry the list's login). */
+function failure(err: unknown, url?: URL): Response {
   if (err instanceof BlockedError) return fail(err.message, 403);
   const name = (err as Error)?.name;
   if (name === "TimeoutError" || name === "AbortError") return fail("O servidor da lista não respondeu a tempo", 504);
-  console.error(`relay: ${(err as Error)?.message ?? err}`);
+  const failed = (err as { hostname?: string })?.hostname;
+  console.error(`relay ${url?.host ?? "?"}${failed && failed !== url?.hostname ? ` → ${failed}` : ""}: ${(err as Error)?.message ?? err}`);
   return fail("Não deu pra falar com o servidor da lista", 502);
 }
 
@@ -87,11 +90,11 @@ async function readCapped(body: ReadableStream<Uint8Array>, max: number): Promis
   return out;
 }
 
-async function fetchText(req: Request, params: URLSearchParams): Promise<Response> {
+/** `signal`: the request's by default; a catalogue being kept (catalogcache.ts) passes its own, so one viewer leaving doesn't stop it. */
+async function fetchText(req: Request, params: URLSearchParams, signal: AbortSignal = AbortSignal.any([req.signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)])): Promise<Response> {
   const url = target(params);
   if (!url) return fail("Link inválido", 400);
   try {
-    const signal = AbortSignal.any([req.signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]);
     const { response } = await fetchPublic(url, { headers: upstreamHeaders(params, null), signal }, policy);
     const body = response.body ? await readCapped(response.body, MAX_TEXT) : new Uint8Array();
     if (!body) return fail("A lista passa de 150 MB", 413);
@@ -104,7 +107,7 @@ async function fetchText(req: Request, params: URLSearchParams): Promise<Respons
       },
     });
   } catch (err) {
-    return failure(err);
+    return failure(err, url);
   }
 }
 
@@ -157,7 +160,7 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
       );
       if (cached) return cached;
     } catch (err) {
-      return failure(err);
+      return failure(err, url);
     }
   }
   const headersTimeout = new AbortController();
@@ -167,7 +170,7 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
   try {
     upstream = await fetchPublic(url, { headers: upstreamHeaders(params, req.headers.get("range")), signal }, policy);
   } catch (err) {
-    return failure(err);
+    return failure(err, url);
   } finally {
     clearTimeout(timer);
   }
@@ -237,7 +240,7 @@ async function relayImage(req: Request, params: URLSearchParams): Promise<Respon
     }
     return new Response(body, { headers: headers(entry) });
   } catch (err) {
-    return failure(err);
+    return failure(err, url);
   }
 }
 
@@ -290,10 +293,26 @@ async function serverList(req: Request, url: URL): Promise<Response> {
     if (upstream.live) params.set("live", "1");
     return relayStream(req, params);
   }
+  const key = catalogKey(list.id, url.searchParams);
+  if (key) {
+    const copy = await catalogs.get(key, async () => {
+      const res = await fetchText(req, new URLSearchParams({ u: upstream.url.href }), AbortSignal.timeout(TEXT_TIMEOUT_MS));
+      return res.ok ? { text: scrubLogin(await res.text(), list), type: res.headers.get("content-type") ?? "application/json" } : null;
+    });
+    if (copy) {
+      const headers = { ...CORS, "content-type": copy.type, "cache-control": "no-store", vary: "accept-encoding" };
+      return /\bgzip\b/.test(req.headers.get("accept-encoding") ?? "")
+        ? new Response(copy.gzip, { headers: { ...headers, "content-encoding": "gzip" } })
+        : new Response(Bun.gunzipSync(copy.gzip), { headers });
+    }
+  }
   const res = await fetchText(req, new URLSearchParams({ u: upstream.url.href }));
   const text = scrubLogin(await res.text(), list);
   return compress(req, new Response(text, { status: res.status, headers: res.headers }));
 }
+
+/** The server lists' catalogues, ready for everyone: fresh 10 min, answered from the copy (and refreshed) for a day. */
+const catalogs = createCatalogCache({ freshMs: 10 * 60_000, maxAgeMs: 24 * 60 * 60_000 });
 
 async function serveStatic(pathname: string): Promise<Response> {
   const rel = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, "").replace(/\\/g, "/");
@@ -331,7 +350,7 @@ const server = Bun.serve({
       case "/api/lists":
         return Response.json(publicLists(serverLists), { headers: { ...CORS, "cache-control": "no-store" } });
       case "/api/health":
-        return Response.json({ ok: true, streams, shared: fanout.stats(), films: vodCache?.stats() ?? null, images: images.size, art: art.sources }, { headers: CORS });
+        return Response.json({ ok: true, streams, shared: fanout.stats(), films: vodCache?.stats() ?? null, catalogs: catalogs.stats(), images: images.size, art: art.sources }, { headers: CORS });
     }
     if (url.pathname.startsWith("/api/x/")) return serverList(req, url);
     if (url.pathname.startsWith("/api/")) return fail("Não encontrado", 404);

@@ -186,10 +186,24 @@ function caretWantsIt(e: KeyboardEvent): boolean {
   return false;
 }
 
+/** The width the TV layout is made for: what reads well from the couch. */
+const TV_LAYOUT_WIDTH = 1280;
+
+/**
+ * webOS draws apps at 1920×1080: zoom brings the layout back to its 1280 size, drawn at the screen's own resolution
+ * (an app set to 1280×720 gets stretched by the TV instead, and its text looks blurry). Measured once, before zooming.
+ */
+export function zoomFor(width: number): number | null {
+  const scale = width / TV_LAYOUT_WIDTH;
+  return scale > 1.2 ? Math.round(scale * 100) / 100 : null;
+}
+
 /** Turns TV mode on: the class for the bigger focus rings, arrow navigation and the Back key. */
 export function installTv() {
   if (!isTv) return;
   document.documentElement.classList.add("tv");
+  const zoom = zoomFor(window.innerWidth);
+  if (zoom) document.documentElement.style.setProperty("zoom", String(zoom));
   Object.assign(window, { hypetvBack: goBack, hypetvKey: pageKey });
   window.addEventListener(
     "keydown",

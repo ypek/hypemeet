@@ -24,3 +24,11 @@ test("spatial navigation: a grid moves cell by cell, a list row by row", () => {
   ];
   expect(name(nextInDirection(rect(0, 0), "ArrowDown", list))).toBe("below");
 });
+
+test("TV zoom: a 1920 screen shows the 1280 layout, sharp; smaller screens stay as they are", async () => {
+  const { zoomFor } = await import("./tv");
+  expect(zoomFor(1920)).toBe(1.5);
+  expect(zoomFor(3840)).toBe(3);
+  expect(zoomFor(1280)).toBeNull();
+  expect(zoomFor(960)).toBeNull();
+});

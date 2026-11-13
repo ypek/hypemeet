@@ -10,7 +10,6 @@
   "splashBackground": "splash.png",
   "bgColor": "#131418",
   "iconColor": "#131418",
-  "resolution": "1280x720",
   "disableBackHistoryAPI": true,
   "requiredACG": [],
   "handlesRelaunch": false
