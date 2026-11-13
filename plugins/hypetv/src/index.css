@@ -142,3 +142,19 @@
     background: var(--color-ink);
   }
 }
+
+/* TV mode (lib/tv.ts): driven by a remote from across the room, so the focus has to be impossible to miss. */
+html.tv :focus-visible {
+  outline: 4px solid var(--color-accent-hi);
+  outline-offset: 3px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+html.tv video:focus-visible,
+html.tv [data-player]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+html.tv .scrollbar-thin {
+  scroll-padding-block: 48px;
+}

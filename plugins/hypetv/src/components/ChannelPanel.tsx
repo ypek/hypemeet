@@ -1,5 +1,6 @@
 import { Search, X } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { isTv } from "../lib/tv";
 import { ALL, filterItems } from "../lib/library";
 import type { CatalogItem } from "../lib/types";
 import { Art } from "./ui";
@@ -10,13 +11,20 @@ export function ChannelPanel({ items, playingKey, onPick, onClose }: { items: Ca
   const [query, setQuery] = useState("");
   const search = useDeferredValue(query);
   const shown = useMemo(() => filterItems(items, { group: ALL, query: search, favorites: new Set(), recents: [] }), [items, search]);
+  // On a TV the focus starts on the channel playing (no on-screen keyboard popping up for the search).
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isTv) return;
+    const t = setTimeout(() => (list.current?.querySelector<HTMLElement>("[aria-current]") ?? list.current?.querySelector<HTMLElement>("button"))?.focus(), 60);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <>
       <div className="flex h-14 shrink-0 items-center gap-2 border-b-2 border-line px-3">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-soft" />
           <input
-            autoFocus
+            autoFocus={!isTv}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && onClose()}
@@ -29,7 +37,7 @@ export function ChannelPanel({ items, playingKey, onPick, onClose }: { items: Ca
           <X className="size-4" />
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col py-1 pl-1">
+      <div ref={list} className="flex min-h-0 flex-1 flex-col py-1 pl-1">
         <VirtualGrid
           items={shown}
           minWidth={0}

@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronRight, Maximize, Minimize, Pause, PictureInPictur
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { attach, attemptsFor, type Attached } from "../lib/engine";
 import { loadVolume, saveVolume } from "../lib/storage";
+import { isTv, onBack, remoteKey } from "../lib/tv";
 import type { Playable } from "../lib/types";
 import { Button, LiveBadge, Spinner } from "./ui";
 
@@ -103,6 +104,8 @@ export function Player({
   panel?: (close: () => void) => ReactNode;
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
+  // Back closes the channel list first.
+  useEffect(() => (panelOpen ? onBack(() => (setPanelOpen(false), true)) : undefined), [panelOpen]);
   const latestCallbacks = useRef({ onStarted, onProgress, resumeAt, onStall });
   latestCallbacks.current = { onStarted, onProgress, resumeAt, onStall };
   const box = useRef<HTMLDivElement>(null);
@@ -364,10 +367,45 @@ export function Player({
   };
   useEffect(() => () => clearTimeout(hideTimer.current), []);
 
+  useEffect(() => {
+    if (isTv && theater) box.current?.focus({ preventScroll: true });
+  }, [theater]);
+
   const onKey = (e: React.KeyboardEvent) => {
+    // Any key shows the controls, so navigating them with a remote never lands on hidden buttons.
+    poke();
+    const remote = remoteKey(e.nativeEvent);
+    if (remote === "MediaPlay" || remote === "MediaPause" || remote === "MediaPlayPause") {
+      e.preventDefault();
+      const paused = video.current?.paused ?? true;
+      if (remote === "MediaPlayPause" || paused === (remote === "MediaPlay")) toggle();
+      return;
+    }
+    if (remote === "MediaFastForward" || remote === "MediaRewind") {
+      e.preventDefault();
+      if (!live) seek(time + (remote === "MediaFastForward" ? 30 : -30));
+      return;
+    }
+    if ((remote === "ChannelUp" || remote === "ChannelDown") && onZap) {
+      e.preventDefault();
+      // CH+ is the next channel in the list, as on a TV.
+      onZap(remote === "ChannelUp" ? 1 : -1);
+      return;
+    }
+    if (remote === "MediaStop" && onTheater && theater) {
+      e.preventDefault();
+      onTheater(false);
+      return;
+    }
     if ((e.target as HTMLElement).closest("input, button")) return;
     const k = e.key.toLowerCase();
-    if (k === " " || k === "k") toggle();
+    // On a TV: OK plays/pauses; on a live channel up/down zap and left opens the channel list; on a film
+    // up/down are left to the remote's focus (to reach the controls).
+    if (isTv && k === "enter") toggle();
+    else if (isTv && live && (k === "arrowup" || k === "arrowdown") && onZap) onZap(k === "arrowup" ? -1 : 1);
+    else if (isTv && live && k === "arrowleft" && panel) setPanelOpen(true);
+    else if (isTv && (k === "arrowup" || k === "arrowdown")) return;
+    else if (k === " " || k === "k") toggle();
     else if (k === "m") setVolume((s) => ({ ...s, muted: !s.muted }));
     else if (k === "f") toggleFullscreen();
     else if (k === "arrowright" && !live) seek(time + 10);
@@ -401,6 +439,8 @@ export function Player({
     <div
       ref={box}
       tabIndex={0}
+      data-player=""
+      data-tv-scope={theater ? "" : undefined}
       onKeyDown={onKey}
       onMouseMove={poke}
       onMouseLeave={() => setControls(false)}
@@ -468,7 +508,7 @@ export function Player({
       )}
 
       {panel && panelOpen && (
-        <div className="absolute inset-y-0 left-0 z-30 flex w-[min(22rem,85%)] animate-fade-in flex-col border-r-2 border-line bg-panel/95 backdrop-blur-xl">
+        <div data-tv-scope="" className="absolute inset-y-0 left-0 z-30 flex w-[min(22rem,85%)] animate-fade-in flex-col border-r-2 border-line bg-panel/95 backdrop-blur-xl">
           {panel(() => setPanelOpen(false))}
         </div>
       )}

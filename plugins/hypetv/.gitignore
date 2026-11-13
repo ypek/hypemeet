@@ -2,3 +2,7 @@ node_modules
 dist
 *.tsbuildinfo
 .env*
+
+# TV apps: build output and the Android signing key (keep it: updates need the same key).
+tv/out
+tv/android/signing

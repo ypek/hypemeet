@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, Heart, Play, RotateCcw, Star } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useArt } from "../lib/art";
 import { seasonsOf } from "../lib/library";
 import { imageUrl, ListError } from "../lib/net";
@@ -7,6 +7,7 @@ import { inProgress, watched, type Progress } from "../lib/storage";
 import type { CatalogItem, Episode, Playable } from "../lib/types";
 import type { TitleInfo, Xtream } from "../lib/xtream";
 import { cleanLabel } from "./Rail";
+import { isTv } from "../lib/tv";
 import { Art, Button, Spinner } from "./ui";
 
 export const clock = (seconds: number) => {
@@ -75,6 +76,14 @@ export function Detail({
     return () => abort.abort();
   }, [item, xtream, series, local]);
 
+  // On a TV the focus starts on "Assistir" / the next episode.
+  const root = useRef<HTMLDivElement>(null);
+  const loaded = !!info;
+  useEffect(() => {
+    if (!isTv) return;
+    const t = setTimeout(() => (root.current?.querySelector<HTMLElement>("[data-primary]") ?? root.current?.querySelector<HTMLElement>("button"))?.focus(), 120);
+    return () => clearTimeout(t);
+  }, [item.key, loaded]);
   const poster = info?.poster ?? item.logo;
   const backdrop = info?.backdrop ?? art?.backdrop;
   const year = info?.year ?? item.info?.year;
@@ -105,7 +114,7 @@ export function Detail({
   const resumeEpisode = series && upNext && inProgress(progress[upNext.key]);
 
   return (
-    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+    <div ref={root} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
       <div className={`relative isolate flex flex-col justify-end ${compact ? "min-h-56" : "min-h-[clamp(260px,42vh,440px)]"}`}>
         <div className="absolute inset-0 -z-10 overflow-hidden">
           {backdrop ? (
@@ -142,7 +151,7 @@ export function Detail({
             <div className="mt-4 flex flex-wrap gap-2">
               {!series && item.play && (
                 <>
-                  <Button variant="primary" onClick={() => playFilm(false)}>
+                  <Button variant="primary" data-primary="" onClick={() => playFilm(false)}>
                     <Play className="size-4 fill-current" /> {resumeFilm ? `Continuar de ${clock(filmProgress!.t)}` : "Assistir"}
                   </Button>
                   {resumeFilm && (
@@ -153,7 +162,7 @@ export function Detail({
                 </>
               )}
               {series && upNext && (
-                <Button variant="primary" onClick={() => playEpisode(upNext)}>
+                <Button variant="primary" data-primary="" onClick={() => playEpisode(upNext)}>
                   <Play className="size-4 fill-current" /> {resumeEpisode ? `Continuar T${upNext.season} E${upNext.episode}` : lastTouched ? `Assistir T${upNext.season} E${upNext.episode}` : "Assistir"}
                 </Button>
               )}
@@ -226,7 +235,7 @@ export function Detail({
                     >
                       <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-sm sm:w-40">
                         <Art kind="series" name={item.name} src={e.logo ?? poster} shape="still" className="size-full" />
-                        <span className={`absolute inset-0 grid place-items-center bg-black/45 transition ${playing ? "opacity-100" : "opacity-0 group-hover/ep:opacity-100"}`}>
+                        <span className={`absolute inset-0 grid place-items-center bg-black/45 transition ${playing ? "opacity-100" : "opacity-0 group-hover/ep:opacity-100 group-focus-visible/ep:opacity-100"}`}>
                           <Play className="size-6 fill-current" />
                         </span>
                         {p && (

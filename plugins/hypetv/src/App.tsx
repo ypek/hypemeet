@@ -1,5 +1,5 @@
 import { Radio, Search, Tv, X } from "lucide-react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AddPlaylist } from "./components/AddPlaylist";
 import { Browser } from "./components/Browser";
 import { ChannelPanel } from "./components/ChannelPanel";
@@ -33,6 +33,7 @@ import {
 } from "./lib/storage";
 import type { CatalogItem, Kind, Playable } from "./lib/types";
 import { lighter, variantIndex, variantKey, type Variant } from "./lib/variants";
+import { isTv, onBack } from "./lib/tv";
 import { useHost, useTogether } from "./room";
 import { useCatalog } from "./useCatalog";
 
@@ -233,8 +234,43 @@ export function App() {
   const playingUrl = now?.play.url;
   useEffect(() => {
     if (!playingUrl) setTheater(false);
-    else if (smallArea) setTheater(true);
+    else if (smallArea || isTv) setTheater(true);
   }, [playingUrl]);
+
+  // TV: leaving cinema mode puts the focus back on what was picked (the last thing focused outside the player).
+  const returnFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isTv) return;
+    const onFocus = (e: FocusEvent) => {
+      if (e.target instanceof HTMLElement && !e.target.closest("[data-player]")) returnFocus.current = e.target;
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
+  useEffect(() => {
+    if (!isTv || theater) return;
+    // After zapping in cinema mode, the channel now playing in the list; otherwise what was picked.
+    const playing = document.querySelector<HTMLElement>('main [aria-current="true"]');
+    const target = playing && !playing.closest("[data-player]") ? playing : returnFocus.current;
+    if (target?.isConnected) target.focus({ preventScroll: false });
+  }, [theater]);
+
+  // Back on a remote: the list being added, cinema mode, the open page, the search, then home; at home it leaves.
+  const backState = useRef({ adding, theater, playing: !!now, detail, query, view });
+  backState.current = { adding, theater, playing: !!now, detail, query, view };
+  useEffect(
+    () =>
+      onBack(() => {
+        const s = backState.current;
+        if (s.adding) return setAdding(false), true;
+        if (s.theater && s.playing) return setTheater(false), true;
+        if (s.detail) return setDetail(null), true;
+        if (s.query) return setQuery(""), setScope("all"), true;
+        if (s.view !== "home") return go("home"), true;
+        return false;
+      }),
+    [],
+  );
   const inRoom = host.status === "room";
   const invite = together.broadcast && !together.hosting && !together.following ? together.broadcast : null;
   const showPlayer = !!now || (layout !== "narrow" && view === "live" && !detail);
@@ -525,7 +561,7 @@ export function App() {
       </div>
 
       {adding && (
-        <div className="absolute inset-0 z-50 bg-scrim backdrop-blur-sm">
+        <div data-tv-scope="" className="absolute inset-0 z-50 bg-scrim backdrop-blur-sm">
           <AddPlaylist onAdded={added} onCancel={() => setAdding(false)} />
         </div>
       )}

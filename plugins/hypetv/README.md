@@ -46,6 +46,44 @@ bun test           # parser, Xtream, proxy, repasse e logos
 bun run build      # tipos + build da página
 ```
 
+## Na TV (Android TV e LG webOS)
+
+Os dois apps abrem a página de TV do servidor, `https://hypetv.mihawkdev.com/tv/`: o mesmo HypeTv, num build
+próprio (`vite build --mode tv`, em `dist/tv`) e no modo TV (`src/lib/tv.ts`):
+
+- setas andam pelo foco (navegação espacial), OK aperta; o foco tem um anel grande, pra ver do sofá;
+- Voltar fecha o que estiver aberto (lista de canais, modo cinema, página, busca) e na Início sai do app;
+- no ao vivo: ↑/↓ e CH+/CH− trocam de canal, ← abre a lista ao lado da imagem; OK pausa;
+- play/pause, parar, avançar e voltar do controle chegam no player de qualquer tela.
+
+TVs têm navegador antigo (webOS 5 é Chromium 68), então esse build baixa a sintaxe, põe os polyfills e reescreve o
+CSS do Tailwind v4 (`tv/web.ts`: `@layer`, propriedades lógicas, `:focus-visible`, `aspect-ratio`…).
+
+```
+tv/web.ts            o CSS do build de TV
+tv/art.ts            ícones, banner e splash (os PNGs ficam no git)
+tv/android/          app Android TV: WebView em tela cheia, banner na home da TV
+tv/webos/            app LG webOS: appinfo.json e a página que abre o servidor
+```
+
+```bash
+tv/android/build.sh                          # → tv/out/HypeTv-androidtv-<versão>.apk (Android SDK + JDK 17+)
+tv/webos/build.sh                            # → tv/out/com.mihawkdev.hypetv_<versão>_all.ipk (npm i -g @webos-tools/cli)
+```
+
+A chave que assina o APK nasce no primeiro build em `tv/android/signing/` (fora do git). Guarde: atualização só
+instala por cima se for assinada com a mesma chave.
+
+Instalar:
+
+- **Android TV**: copie o `.apk` pra TV (pendrive, ou um app como o "Send files to TV") e abra num gerenciador de
+  arquivos, permitindo "instalar apps desconhecidos"; ou, com a depuração USB/rede ligada,
+  `adb connect <ip-da-tv>` e `adb install -r HypeTv-androidtv-1.0.0.apk`. Aparece na home da TV.
+- **LG webOS**: ative o Modo Desenvolvedor na TV (app "Developer Mode" da LG Content Store, conta LG developer), e
+  aí `ares-setup-device` (IP da TV e a passphrase que o app mostra) e
+  `ares-install -d <tv> com.mihawkdev.hypetv_1.0.0_all.ipk`. A sessão do Modo Desenvolvedor vale 50 horas e pode
+  ser renovada no app.
+
 ## Variáveis
 
 | Variável | Pra quê |

@@ -296,12 +296,14 @@ async function serverList(req: Request, url: URL): Promise<Response> {
 }
 
 async function serveStatic(pathname: string): Promise<Response> {
-  const rel = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, "");
+  const rel = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, "").replace(/\\/g, "/");
   if (rel.startsWith("..")) return fail("Não encontrado", 404);
-  const file = Bun.file(join(DIST, rel || "index.html"));
-  const hit = rel && (await file.exists());
-  const served = hit ? file : Bun.file(join(DIST, "index.html"));
-  const immutable = hit && rel.startsWith("assets/");
+  // The TV build (dist/tv, what the Android TV and webOS apps open) has its own page under /tv/.
+  const tv = rel === "tv" || rel.startsWith("tv/");
+  const file = rel && !rel.endsWith("/") && rel !== "tv" ? Bun.file(join(DIST, rel)) : null;
+  const hit = !!file && (await file.exists());
+  const served = hit ? file : Bun.file(join(DIST, tv ? "tv/index.html" : "index.html"));
+  const immutable = hit && /^(tv\/)?assets\//.test(rel);
   return new Response(served, {
     headers: { ...CORS, "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache" },
   });
@@ -312,7 +314,10 @@ const server = Bun.serve({
   // Seconds without a byte either way before Bun drops the connection; a slow panel building a big list can take a while.
   idleTimeout: 255,
   async fetch(req) {
-    const url = new URL(req.url);
+    let url = new URL(req.url);
+    // The TV page lives at /tv/ and calls the API relative to it (/tv/api/…); its assets need the trailing slash.
+    if (url.pathname === "/tv") return Response.redirect(new URL(`/tv/${url.search}`, url).href, 301);
+    if (url.pathname.startsWith("/tv/api/")) url = new URL(url.pathname.slice(3) + url.search, url);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (req.method === "POST" && url.pathname === "/api/art") return resolveArt(req);
     if (req.method !== "GET" && req.method !== "HEAD") return fail("Método não suportado", 405);

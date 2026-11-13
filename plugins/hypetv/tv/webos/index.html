@@ -1,0 +1,148 @@
+<!doctype html>
+<!--
+  HypeTv for LG webOS: opens the TV page (plugins/hypetv, vite build --mode tv) on the HypeTv server. The page does
+  the remote's navigation and Back itself (src/lib/tv.ts). This one only checks the server is reachable first, so a
+  TV without internet gets a message and a button instead of the browser's error page.
+  Plain ES5: it has to run on every webOS, before anything else loads.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>HypeTv</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #131418;
+        color: #f2f3f7;
+        font-family: "LG Smart UI", "Museo Sans", sans-serif;
+      }
+      .center {
+        height: 100%;
+        display: -webkit-box;
+        display: flex;
+        -webkit-box-orient: vertical;
+        flex-direction: column;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        justify-content: center;
+        text-align: center;
+      }
+      img {
+        width: 104px;
+        height: 104px;
+        margin-bottom: 28px;
+      }
+      h1 {
+        font-size: 30px;
+        margin: 0 0 10px;
+      }
+      p {
+        color: #a4a9b8;
+        font-size: 20px;
+        margin: 0 0 28px;
+      }
+      button {
+        font: inherit;
+        font-size: 22px;
+        font-weight: bold;
+        padding: 14px 34px;
+        border-radius: 999px;
+        border: 4px solid #b1a0ff;
+        background: #9070ff;
+        color: #121019;
+        outline: none;
+      }
+      button:focus {
+        box-shadow: 0 0 0 8px rgba(144, 112, 255, 0.35);
+      }
+      .hidden {
+        display: none;
+      }
+      .spinner {
+        width: 34px;
+        height: 34px;
+        border: 4px solid #383b47;
+        border-top-color: #b1a0ff;
+        border-radius: 50%;
+        -webkit-animation: spin 0.8s linear infinite;
+        animation: spin 0.8s linear infinite;
+      }
+      @-webkit-keyframes spin {
+        to {
+          -webkit-transform: rotate(360deg);
+        }
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="center">
+      <img src="largeIcon.png" alt="" />
+      <div id="loading" class="spinner"></div>
+      <div id="offline" class="hidden">
+        <h1>Sem conexão com o HypeTv</h1>
+        <p id="reason">Confira a internet da TV e tente de novo.</p>
+        <button id="retry" type="button">Tentar de novo</button>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var HOME = "https://hypetv.mihawkdev.com/tv/";
+        var loading = document.getElementById("loading");
+        var offline = document.getElementById("offline");
+        var retry = document.getElementById("retry");
+
+        function fail(reason) {
+          loading.className = "spinner hidden";
+          offline.className = "";
+          if (reason) document.getElementById("reason").textContent = "Confira a internet da TV e tente de novo. (" + reason + ")";
+          retry.focus();
+        }
+
+        function open() {
+          loading.className = "spinner";
+          offline.className = "hidden";
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", HOME + "api/health", true);
+          xhr.timeout = 10000;
+          xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 500) location.replace(HOME);
+            else fail("servidor respondeu " + xhr.status);
+          };
+          xhr.onerror = function () {
+            fail("sem resposta");
+          };
+          xhr.ontimeout = function () {
+            fail("demorou demais");
+          };
+          xhr.send();
+        }
+
+        function exit() {
+          var p = window.webOSSystem || window.PalmSystem;
+          if (p && p.platformBack) p.platformBack();
+          else window.close();
+        }
+
+        retry.onclick = open;
+        document.addEventListener("keydown", function (e) {
+          // 461: the remote's Back.
+          if (e.keyCode === 461 || e.keyCode === 27) {
+            e.preventDefault();
+            exit();
+          } else if (!offline.className && (e.keyCode === 13 || (e.keyCode >= 37 && e.keyCode <= 40))) {
+            retry.focus();
+          }
+        });
+        open();
+      })();
+    </script>
+  </body>
+</html>

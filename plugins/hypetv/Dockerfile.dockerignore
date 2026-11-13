@@ -10,3 +10,7 @@ public
 scripts
 plugins/hypetv/server/*.test.ts
 plugins/hypetv/dev
+plugins/hypetv/tv/android
+plugins/hypetv/tv/webos
+plugins/hypetv/tv/out
+plugins/hypetv/tv/*.test.ts

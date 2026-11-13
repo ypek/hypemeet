@@ -68,7 +68,7 @@ export function PosterTile({ item, progress, onOpen, width = "w-36" }: { item: C
   const rating = Number(item.info?.rating) || 0;
   return (
     <button type="button" onClick={onOpen} className={`group/tile flex shrink-0 snap-start flex-col gap-2 text-left ${width}`}>
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border-2 border-line transition duration-200 ease-out-expo group-hover/tile:-translate-y-1 group-hover/tile:border-accent group-hover/tile:shadow-float">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border-2 border-line transition duration-200 ease-out-expo group-hover/tile:-translate-y-1 group-focus-visible/tile:-translate-y-1 group-hover/tile:border-accent group-focus-visible/tile:border-accent group-hover/tile:shadow-float group-focus-visible/tile:shadow-float">
         <Art kind={item.kind} name={item.name} src={item.logo} year={item.info?.year} shape="poster" className="size-full" />
         {progress && (
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-black/60">
@@ -97,7 +97,7 @@ export function PosterTile({ item, progress, onOpen, width = "w-36" }: { item: C
 export function ChannelTile({ item, onPlay, width = "w-40" }: { item: CatalogItem; onPlay: () => void; width?: string }) {
   return (
     <button type="button" onClick={onPlay} className={`group/tile flex shrink-0 snap-start flex-col gap-1.5 text-left ${width}`}>
-      <div className="relative aspect-video w-full overflow-hidden rounded-md border-2 border-line bg-surface-hi transition group-hover/tile:-translate-y-0.5 group-hover/tile:border-accent">
+      <div className="relative aspect-video w-full overflow-hidden rounded-md border-2 border-line bg-surface-hi transition group-hover/tile:-translate-y-0.5 group-focus-visible/tile:-translate-y-0.5 group-hover/tile:border-accent group-focus-visible/tile:border-accent">
         <Art kind="live" name={item.name} src={item.logo} tvgId={item.tvgId} shape="logo" className="size-full p-3!" />
         <span className="absolute top-1.5 left-1.5">
           <LiveBadge />
@@ -116,9 +116,9 @@ function ResumeTile({ entry, onResume }: { entry: Progress; onResume: () => void
   const left = Math.max(1, Math.round((entry.d - entry.t) / 60));
   return (
     <button type="button" onClick={onResume} className="group/tile flex w-60 shrink-0 snap-start flex-col gap-1.5 text-left">
-      <div className="relative aspect-video w-full overflow-hidden rounded-md border-2 border-line transition group-hover/tile:-translate-y-0.5 group-hover/tile:border-accent">
+      <div className="relative aspect-video w-full overflow-hidden rounded-md border-2 border-line transition group-hover/tile:-translate-y-0.5 group-focus-visible/tile:-translate-y-0.5 group-hover/tile:border-accent group-focus-visible/tile:border-accent">
         <Art kind={kind} name={name} src={entry.play.logo ?? entry.owner?.poster} shape="still" className="size-full" />
-        <span className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover/tile:opacity-100">
+        <span className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100">
           <span className="grid size-11 place-items-center rounded-full border-2 border-accent-hi bg-accent text-on-accent shadow-sticker">
             <Play className="size-5 fill-current" />
           </span>

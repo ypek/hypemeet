@@ -137,7 +137,7 @@ function FavoriteButton({ favorite, onClick, className = "" }: { favorite: boole
       }}
       aria-label={favorite ? "Tirar dos favoritos" : "Favoritar"}
       aria-pressed={favorite}
-      className={`grid size-8 shrink-0 place-items-center rounded-full transition ${favorite ? "text-accent-hi" : "text-soft opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 hover:text-ink"} ${className}`}
+      className={`grid size-8 shrink-0 place-items-center rounded-full transition ${favorite ? "text-accent-hi" : "text-soft opacity-0 group-hover/item:opacity-100 group-focus-visible/item:opacity-100 focus-visible:opacity-100 hover:text-ink"} ${className}`}
     >
       <Heart className={`size-4 ${favorite ? "fill-current" : ""}`} />
     </button>
@@ -176,9 +176,9 @@ function PosterCard({ item, progress, favorite, playing, onPick, onFavorite }: {
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onPick())}
       className="group/item flex size-full cursor-pointer flex-col gap-1.5"
     >
-      <div className={`relative min-h-0 flex-1 overflow-hidden rounded-md ring-1 transition ${playing ? "ring-2 ring-accent" : "ring-line group-hover/item:ring-white/20"}`}>
-        <Art kind={item.kind} name={item.name} src={item.logo} year={item.info?.year} shape="poster" className="size-full transition duration-300 ease-out-expo group-hover/item:scale-[1.03]" />
-        <div className="absolute inset-0 grid place-items-center bg-black/45 opacity-0 transition group-hover/item:opacity-100">
+      <div className={`relative min-h-0 flex-1 overflow-hidden rounded-md ring-1 transition ${playing ? "ring-2 ring-accent" : "ring-line group-hover/item:ring-white/20 group-focus-visible/item:ring-white/20"}`}>
+        <Art kind={item.kind} name={item.name} src={item.logo} year={item.info?.year} shape="poster" className="size-full transition duration-300 ease-out-expo group-hover/item:scale-[1.03] group-focus-visible/item:scale-[1.03]" />
+        <div className="absolute inset-0 grid place-items-center bg-black/45 opacity-0 transition group-hover/item:opacity-100 group-focus-visible/item:opacity-100">
           <span className="grid size-11 place-items-center rounded-full bg-accent shadow-float">
             {item.series ? <Tv className="size-5" /> : <Play className="size-5 fill-current" />}
           </span>

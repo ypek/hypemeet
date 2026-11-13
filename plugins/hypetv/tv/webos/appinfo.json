@@ -1,0 +1,17 @@
+{
+  "id": "com.mihawkdev.hypetv",
+  "version": "1.0.0",
+  "vendor": "HypeMeet",
+  "type": "web",
+  "main": "index.html",
+  "title": "HypeTv",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "splashBackground": "splash.png",
+  "bgColor": "#131418",
+  "iconColor": "#131418",
+  "resolution": "1280x720",
+  "disableBackHistoryAPI": true,
+  "requiredACG": [],
+  "handlesRelaunch": false
+}

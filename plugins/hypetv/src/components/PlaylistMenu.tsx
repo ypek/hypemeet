@@ -67,7 +67,7 @@ export function PlaylistMenu({
         <ChevronDown className={`size-4 shrink-0 text-soft transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div role="menu" className="absolute top-full right-0 z-40 mt-2 flex w-72 animate-pop flex-col gap-1 rounded-lg bg-panel p-2 shadow-float border-2 border-line">
+        <div role="menu" data-tv-scope="" className="absolute top-full right-0 z-40 mt-2 flex w-72 animate-pop flex-col gap-1 rounded-lg bg-panel p-2 shadow-float border-2 border-line">
           <div className="px-3 pt-1.5 pb-2">
             <p className="type-link-sm truncate">{active.name}</p>
             <p className="truncate text-xs text-soft">{[kindLabel(active), info].filter(Boolean).join(" · ")}</p>

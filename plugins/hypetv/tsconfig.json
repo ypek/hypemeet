@@ -15,5 +15,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "server", "dev", "vite.config.ts", "../../sdk/hypemeet-plugin.ts"]
+  "include": ["src", "server", "dev", "tv/*.ts", "vite.config.ts", "../../sdk/hypemeet-plugin.ts"]
 }
