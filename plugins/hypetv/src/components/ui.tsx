@@ -124,7 +124,7 @@ export function initials(name: string, max = 2) {
 
 /** A person in the room (the plugin SDK gives a Discord avatar when there is one). */
 export function Face({ name, image, className = "size-6 text-[10px]" }: { name: string; image?: string; className?: string }) {
-  if (image) return <img src={image} alt="" className={`shrink-0 rounded-full bg-surface-hi object-cover ${className}`} />;
+  if (image) return <img src={imageUrl(image) ?? image} alt="" className={`shrink-0 rounded-full bg-surface-hi object-cover ${className}`} />;
   return <span className={`grid shrink-0 place-items-center rounded-full bg-accent font-display font-extrabold text-on-accent ${className}`}>{initials(name)}</span>;
 }
 
