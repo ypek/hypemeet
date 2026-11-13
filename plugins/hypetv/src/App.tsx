@@ -8,7 +8,8 @@ import { Collection, Home } from "./components/Home";
 import { NowPlaying, RoomBanner, useGuide } from "./components/NowPlaying";
 import { createHandle, Player } from "./components/Player";
 import { PlaylistMenu } from "./components/PlaylistMenu";
-import { Rail, VIEW_LABEL, type View } from "./components/Rail";
+import { Sidebar, VIEW_LABEL, type View } from "./components/Rail";
+import { SearchResults } from "./components/Search";
 import { Button, Spinner } from "./components/ui";
 import { useSize } from "./components/VirtualGrid";
 import { ALL, filterItems } from "./lib/library";
@@ -27,7 +28,7 @@ import {
   type PlaylistConfig,
   type Progress,
 } from "./lib/storage";
-import { KIND_LABEL, type CatalogItem, type Kind, type Playable } from "./lib/types";
+import type { CatalogItem, Kind, Playable } from "./lib/types";
 import { useHost, useTogether } from "./room";
 import { useCatalog } from "./useCatalog";
 
@@ -87,6 +88,9 @@ export function App() {
   const [groups, setGroups] = useState<Record<Kind, string>>({ live: ALL, movie: ALL, series: ALL });
   const [query, setQuery] = useState("");
   const search = useDeferredValue(query);
+  /** The header searches everything; "Ver todos" narrows it to one kind, shown in that kind's own page. */
+  const [scope, setScope] = useState<"all" | Kind>("all");
+  const searching = search.trim().length >= 2;
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recents, setRecents] = useState<string[]>([]);
   const [progress, setProgress] = useState<Record<string, Progress>>({});
@@ -107,11 +111,12 @@ export function App() {
     setView(v);
     setDetail(null);
     setQuery("");
+    setScope("all");
   };
 
   // Xtream sections load when a page needs them: its own kind, or all three for home, favourites and recents.
   const { status, xtream, sections, loadSection } = catalog;
-  const needed = useMemo(() => (isKind(view) ? [view] : KINDS), [view]);
+  const needed = useMemo(() => (isKind(view) && !(searching && scope === "all") ? [view] : KINDS), [view, searching, scope]);
   useEffect(() => {
     if (status !== "ready" || !xtream) return;
     for (const k of needed) if (!sections[k]) loadSection(k);
@@ -187,6 +192,8 @@ export function App() {
   const favoriteKey = now?.key && (catalog.catalog.live?.items.some((i) => i.key === now.key) || now.owner) ? (now.owner?.key ?? now.key) : undefined;
   const warning = catalog.account?.maxConnections === 1 && now && !now.play.live ? "Sua lista aceita 1 conexão: num filme, os outros podem não conseguir abrir." : undefined;
 
+  const sidebarMode = layout === "narrow" ? "bar" : layout === "medium" && showPlayer ? "icons" : "full";
+
   if (!active) return <AddPlaylist onAdded={added} />;
 
   const contentWidth =
@@ -226,6 +233,22 @@ export function App() {
         </div>
       </div>
     );
+  else if (searching && scope === "all" && !detail)
+    content = (
+      <SearchResults
+        query={search.trim()}
+        catalog={catalog.catalog}
+        progress={progress}
+        loading={loadingKinds}
+        onOpen={setDetail}
+        onPlayChannel={playChannel}
+        onSeeAll={(kind) => {
+          setView(kind);
+          setScope(kind);
+          setGroups((g) => ({ ...g, [kind]: ALL }));
+        }}
+      />
+    );
   else if (detail)
     content = (
       <Detail
@@ -251,7 +274,8 @@ export function App() {
         onOpen={setDetail}
         onPlayChannel={playChannel}
         onResume={resume}
-        listName={active.name}
+        xtream={catalog.xtream}
+        onPlayFilm={(item) => item.play && play({ play: item.play, key: item.key, start: progress[item.key]?.t, owner: { key: item.key, name: item.name, poster: item.logo, kind: "movie" } })}
       />
     );
   else if (view === "favorites" || view === "recents")
@@ -277,7 +301,7 @@ export function App() {
         onRetry={catalog.refresh}
         group={groups[view]}
         onGroup={(g) => setGroups((s) => ({ ...s, [view]: g }))}
-        query={search}
+        query={searching && scope === view ? search : ""}
         favorites={favorites}
         recents={recents}
         onToggleFavorite={toggleFavorite}
@@ -285,7 +309,7 @@ export function App() {
         onPick={playChannel}
         onOpen={setDetail}
         progress={progress}
-        sidebar={layout === "wide" || (layout === "medium" && !showPlayer)}
+        select={sidebarMode !== "full"}
       />
     );
 
@@ -301,42 +325,64 @@ export function App() {
     </div>
   );
 
-  const title = detail ? (detail.kind === "series" ? "Série" : "Filme") : VIEW_LABEL[view];
+  const title = detail ? (detail.kind === "series" ? "Série" : "Filme") : searching && scope === "all" ? "Busca" : VIEW_LABEL[view];
 
   return (
     <div ref={root} className={`relative flex size-full bg-canvas ${layout === "narrow" ? "flex-col" : "flex-row"}`}>
-      <Rail view={view} onView={go} kinds={catalog.kinds.length ? catalog.kinds : KINDS} onAdd={() => setAdding(true)} horizontal={layout === "narrow"} />
+      <Sidebar
+        view={view}
+        onView={go}
+        kinds={catalog.kinds.length ? catalog.kinds : KINDS}
+        counts={{ live: catalog.catalog.live?.items.length, movie: catalog.catalog.movie?.items.length, series: catalog.catalog.series?.items.length }}
+        section={isKind(view) ? catalog.catalog[view] : undefined}
+        group={isKind(view) ? groups[view] : ALL}
+        onGroup={(g) => {
+          if (!isKind(view)) return;
+          setGroups((s) => ({ ...s, [view]: g }));
+          setDetail(null);
+          setQuery("");
+          setScope("all");
+        }}
+        favoriteCount={favorites.size}
+        onAdd={() => setAdding(true)}
+        mode={sidebarMode}
+      />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-2.5 border-b-2 border-line bg-panel px-3">
-          <PlaylistMenu
-            playlists={playlists}
-            active={active}
-            account={catalog.account}
-            compact={layout === "narrow"}
-            onSelect={setActiveId}
-            onAdd={() => setAdding(true)}
-            onRefresh={catalog.refresh}
-            onRemove={remove}
-          />
-          <h1 className="hidden truncate font-display text-lg font-extrabold tracking-[-0.01em] sm:block">{title}</h1>
-          {isKind(view) && !detail && (
-            <div className="relative ml-auto min-w-0 flex-1 sm:max-w-xs">
-              <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-soft" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Buscar em ${KIND_LABEL[view].toLowerCase()}`}
-                aria-label="Buscar"
-                className="h-10 w-full rounded-full border-2 border-line bg-surface pr-9 pl-10 text-sm font-medium text-ink outline-none placeholder:text-soft focus:border-accent"
-              />
-              {query && (
-                <button type="button" onClick={() => setQuery("")} aria-label="Limpar busca" className="absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-full text-soft hover:text-ink">
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-          )}
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b-2 border-line bg-panel px-4">
+          <h1 className={`min-w-0 shrink-0 truncate font-display text-lg font-extrabold tracking-[-0.01em] ${layout === "narrow" ? "hidden" : "w-40"}`}>{title}</h1>
+          <div className="relative mx-auto w-full min-w-0 max-w-xl flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-soft" />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setScope("all");
+                setDetail(null);
+              }}
+              onKeyDown={(e) => e.key === "Escape" && (setQuery(""), setScope("all"))}
+              placeholder="Buscar canais, filmes e séries"
+              aria-label="Buscar canais, filmes e séries"
+              className="h-10 w-full rounded-full border-2 border-line bg-surface pr-10 pl-11 text-sm font-medium text-ink outline-none placeholder:text-soft focus:border-accent"
+            />
+            {query && (
+              <button type="button" onClick={() => (setQuery(""), setScope("all"))} aria-label="Limpar busca" className="absolute top-1/2 right-2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-soft hover:text-ink">
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+          <div className={`flex shrink-0 justify-end ${layout === "narrow" ? "" : "w-40"}`}>
+            <PlaylistMenu
+              playlists={playlists}
+              active={active}
+              account={catalog.account}
+              compact={layout === "narrow"}
+              onSelect={setActiveId}
+              onAdd={() => setAdding(true)}
+              onRefresh={catalog.refresh}
+              onRemove={remove}
+            />
+          </div>
         </header>
 
         <main className={`flex min-h-0 flex-1 ${layout === "narrow" ? "flex-col" : "flex-row"}`}>

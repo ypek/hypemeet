@@ -1,8 +1,12 @@
-import { Clapperboard, Film, Heart, History, Play, Tv } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { Clapperboard, Film, Heart, History, Info, Play, Star, Tv } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useArt } from "../lib/art";
+import { imageUrl } from "../lib/net";
+import type { TitleInfo, Xtream } from "../lib/xtream";
+import { cleanLabel } from "./Rail";
 import { inProgress, type Progress } from "../lib/storage";
 import type { Catalog, CatalogItem, Kind } from "../lib/types";
-import { Art, LiveBadge, Spinner, Wordmark } from "./ui";
+import { Art, Button, LiveBadge, Spinner } from "./ui";
 
 const RAIL_MAX = 24;
 
@@ -53,7 +57,7 @@ export function ChannelTile({ item, onPlay, width = "w-40" }: { item: CatalogIte
         </span>
       </div>
       <span className="truncate text-[13px] font-bold">{item.name}</span>
-      <span className="-mt-1 truncate text-[11px] text-soft">{item.group}</span>
+      <span className="-mt-1 truncate text-[11px] text-soft">{cleanLabel(item.group)}</span>
     </button>
   );
 }
@@ -84,6 +88,69 @@ function ResumeTile({ entry, onResume }: { entry: Progress; onResume: () => void
   );
 }
 
+/** The dashboard's hero (IPTVnator's): the newest film, with its backdrop, facts and plot. */
+function Hero({ item, xtream, onOpen, onPlay }: { item: CatalogItem; xtream?: Xtream; onOpen: () => void; onPlay: () => void }) {
+  const [info, setInfo] = useState<TitleInfo | null>(null);
+  const art = useArt({ kind: item.kind, name: item.name, year: item.info?.year });
+  useEffect(() => {
+    setInfo(null);
+    if (!xtream || !/^m\d+$/.test(item.key)) return;
+    const abort = new AbortController();
+    xtream.movieInfo(Number(item.key.slice(1)), abort.signal).then(setInfo, () => undefined);
+    return () => abort.abort();
+  }, [item, xtream]);
+  const backdrop = info?.backdrop ?? art?.backdrop;
+  const poster = info?.poster ?? item.logo;
+  const rating = info?.rating ?? (Number(item.info?.rating) || undefined);
+  return (
+    <section className="relative isolate mx-5 flex min-h-[clamp(240px,34vh,360px)] animate-fade-in flex-col justify-end overflow-hidden rounded-xl border-2 border-line shadow-float sm:mx-7">
+      <div className="absolute inset-0 -z-10 bg-surface">
+        {backdrop ? (
+          <img src={imageUrl(backdrop, "w1280")} alt="" className="size-full object-cover" />
+        ) : poster ? (
+          <img src={imageUrl(poster, "w780")} alt="" className="size-full scale-110 object-cover object-top opacity-70 blur-xl" />
+        ) : null}
+        <div className="absolute inset-0 bg-linear-to-t from-canvas via-canvas/60 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-r from-canvas/90 via-canvas/40 to-transparent" />
+      </div>
+      {poster && (
+        <img
+          src={imageUrl(poster, "w342")}
+          alt=""
+          className="absolute top-1/2 right-8 hidden aspect-[2/3] w-36 -translate-y-1/2 rotate-2 rounded-md border-2 border-line object-cover shadow-float md:block lg:w-44"
+        />
+      )}
+      <div className="flex max-w-xl flex-col gap-3 p-6 sm:p-8 md:pr-56">
+        <span className="type-label text-accent-hi">Novo na lista</span>
+        <h2 className="font-display text-[30px] leading-[1.05] font-extrabold tracking-[-0.02em] text-balance sm:text-[38px]">{item.name.replace(/\s*\((19|20)\d{2}\)\s*$/, "")}</h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-ink/85">
+          {(info?.year ?? item.info?.year) && <span>{info?.year ?? item.info?.year}</span>}
+          {info?.duration && <span>{info.duration}</span>}
+          {rating && (
+            <span className="flex items-center gap-1">
+              <Star className="size-3.5 fill-warn text-warn" /> {rating.toFixed(1).replace(".", ",")}
+            </span>
+          )}
+          {info?.genres.slice(0, 2).map((g) => (
+            <span key={g} className="text-soft">
+              {g}
+            </span>
+          ))}
+        </div>
+        {info?.plot && <p className="line-clamp-2 text-[15px] leading-relaxed text-ink/80">{info.plot}</p>}
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Button variant="primary" onClick={onPlay}>
+            <Play className="size-4 fill-current" /> Assistir
+          </Button>
+          <Button onClick={onOpen}>
+            <Info className="size-4" /> Mais informações
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** IPTVnator's dashboard: rails of what's in progress, recent, favourite and new on this list. */
 export function Home({
   catalog,
@@ -94,7 +161,8 @@ export function Home({
   onOpen,
   onPlayChannel,
   onResume,
-  listName,
+  xtream,
+  onPlayFilm,
 }: {
   catalog: Catalog;
   progress: Record<string, Progress>;
@@ -105,7 +173,8 @@ export function Home({
   onOpen: (item: CatalogItem) => void;
   onPlayChannel: (item: CatalogItem) => void;
   onResume: (key: string, entry: Progress) => void;
-  listName: string;
+  xtream?: Xtream;
+  onPlayFilm: (item: CatalogItem) => void;
 }) {
   const index = useIndex(catalog);
   const resume = Object.entries(progress)
@@ -130,12 +199,7 @@ export function Home({
 
   return (
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto py-6">
-      <header className="px-5 sm:px-7">
-        <Wordmark className="text-[30px]" />
-        <p className="mt-2 text-sm text-soft">
-          {listName} · {[catalog.live && `${catalog.live.items.length.toLocaleString("pt-BR")} canais`, catalog.movie && `${catalog.movie.items.length.toLocaleString("pt-BR")} filmes`, catalog.series && `${catalog.series.items.length.toLocaleString("pt-BR")} séries`].filter(Boolean).join(" · ")}
-        </p>
-      </header>
+      {newMovies[0] && <Hero item={newMovies[0]} xtream={xtream} onOpen={() => onOpen(newMovies[0]!)} onPlay={() => onPlayFilm(newMovies[0]!)} />}
       {resume.length > 0 && (
         <Rail title="Continuar assistindo" icon={Play}>
           {resume.map(([key, entry]) => (

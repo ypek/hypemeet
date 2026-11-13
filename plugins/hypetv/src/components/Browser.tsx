@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { ALL, FAVORITES, filterItems, RECENTS } from "../lib/library";
 import { inProgress, type Progress } from "../lib/storage";
 import { KIND_LABEL, type CatalogItem, type Kind, type Section } from "../lib/types";
+import { cleanLabel } from "./Rail";
 import { Art, Button, Spinner } from "./ui";
 import { VirtualGrid } from "./VirtualGrid";
 
@@ -28,12 +29,12 @@ interface BrowserProps {
   onOpen: (item: CatalogItem) => void;
   /** Films: how far in, for the bar under the poster. */
   progress?: Record<string, Progress>;
-  /** Groups as a sidebar (wide) or a select above the list. */
-  sidebar: boolean;
+  /** Categories as a select above the list (the sidebar shows them when it's open). */
+  select: boolean;
 }
 
 export function Browser(props: BrowserProps) {
-  const { kind, section, status, error, onRetry, group, onGroup, query, favorites, recents, sidebar } = props;
+  const { kind, section, status, error, onRetry, group, onGroup, query, favorites, recents, select } = props;
 
   // A search looks through every group, except inside favourites and recents.
   const effectiveGroup = query.trim() && group !== FAVORITES && group !== RECENTS ? ALL : group;
@@ -94,24 +95,13 @@ export function Browser(props: BrowserProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
-      {sidebar && (
-        <nav aria-label="Categorias" className="scrollbar-thin flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r-2 border-line p-2">
-          {special.map(({ name, count, icon: Icon }) => (
-            <GroupButton key={name} active={group === name} onClick={() => onGroup(name)} label={groupLabel(name)} count={count} icon={<Icon className="size-4" />} />
-          ))}
-          <div className="type-label mt-3 mb-1.5 px-3 text-soft/80">Categorias</div>
-          {section.groups.map((g) => (
-            <GroupButton key={g.name} active={group === g.name} onClick={() => onGroup(g.name)} label={g.name} count={g.count} />
-          ))}
-        </nav>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 py-2 pl-2">
-        {!sidebar && (
+      <div className={`flex min-w-0 flex-1 flex-col gap-3 pt-4 ${posters ? "pl-5" : "pl-3"}`}>
+        {select && (
           <select
             value={group}
             onChange={(e) => onGroup(e.target.value)}
             aria-label="Categoria"
-            className="type-link-sm mr-3 h-10 shrink-0 rounded-sm border-2 border-line bg-surface px-3 text-ink outline-none focus:border-accent/70"
+            className="type-link-sm mr-4 h-10 shrink-0 rounded-full border-2 border-line bg-surface px-4 text-ink outline-none focus:border-accent"
           >
             {special.map(({ name, count }) => (
               <option key={name} value={name}>
@@ -121,34 +111,18 @@ export function Browser(props: BrowserProps) {
             ))}
             {section.groups.map((g) => (
               <option key={g.name} value={g.name}>
-                {g.name} ({g.count})
+                {cleanLabel(g.name)} ({g.count})
               </option>
             ))}
           </select>
         )}
-        <div className="flex items-baseline justify-between gap-2 pr-4 pl-1">
-          <h2 className="type-link-sm truncate">{query.trim() ? `Busca por “${query.trim()}”` : groupLabel(effectiveGroup)}</h2>
-          <span className="shrink-0 text-xs text-soft tabular-nums">{items.length.toLocaleString("pt-BR")}</span>
+        <div className="flex items-baseline gap-3 pr-5">
+          <h2 className="min-w-0 truncate font-display text-[22px] font-extrabold tracking-[-0.01em]">{query.trim() ? `Busca por “${query.trim()}”` : cleanLabel(groupLabel(effectiveGroup))}</h2>
+          <span className="shrink-0 text-sm text-soft tabular-nums">{items.length.toLocaleString("pt-BR")} {kind === "live" ? "canais" : kind === "movie" ? "filmes" : "séries"}</span>
         </div>
         {list}
       </div>
     </div>
-  );
-}
-
-function GroupButton({ active, onClick, label, count, icon }: { active: boolean; onClick: () => void; label: string; count?: number; icon?: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active || undefined}
-      className={`relative flex h-9 shrink-0 items-center gap-2.5 rounded-sm px-3 text-left text-[13px] transition ${active ? "bg-surface-hi font-semibold text-ink" : "text-soft hover:bg-surface hover:text-ink"}`}
-    >
-      {active && <span className="absolute top-2 bottom-2 left-0 w-[3px] rounded-full bg-accent" />}
-      {icon && <span className={active ? "text-accent-hi" : ""}>{icon}</span>}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {count !== undefined && <span className="shrink-0 text-[11px] text-soft/80 tabular-nums">{count.toLocaleString("pt-BR")}</span>}
-    </button>
   );
 }
 
@@ -183,7 +157,7 @@ function ChannelRow({ item, favorite, playing, onPick, onFavorite }: { item: Cat
       <Art kind="live" name={item.name} src={item.logo} tvgId={item.tvgId} shape="logo" className="size-11 rounded-sm border-2 border-line" />
       <div className="min-w-0 flex-1">
         <p className={`truncate text-sm ${playing ? "font-semibold text-ink" : "text-ink/95"}`}>{item.name}</p>
-        <p className="truncate text-xs text-soft">{playing ? "Tocando agora" : item.group}</p>
+        <p className="truncate text-xs text-soft">{playing ? "Tocando agora" : cleanLabel(item.group)}</p>
       </div>
       {playing ? <Play className="mr-2 size-4 shrink-0 fill-current text-accent-hi" /> : null}
       <FavoriteButton favorite={favorite} onClick={onFavorite} />
@@ -217,7 +191,7 @@ function PosterCard({ item, progress, favorite, playing, onPick, onFavorite }: {
       </div>
       <div className="min-w-0 px-0.5">
         <p className="truncate text-[13px] leading-tight font-semibold">{item.name}</p>
-        <p className="truncate text-[11px] text-soft">{meta || item.group}</p>
+        <p className="truncate text-[11px] text-soft">{meta || cleanLabel(item.group)}</p>
       </div>
     </div>
   );

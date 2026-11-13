@@ -57,14 +57,17 @@ export function PlaylistMenu({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border-2 border-line bg-surface pr-2.5 pl-1.5 transition hover:bg-surface-hi"
+        title="Trocar de lista"
+        className="flex h-9 min-w-0 items-center gap-2 rounded-full border-2 border-line bg-surface pr-2.5 pl-1 transition hover:bg-surface-hi"
       >
-        <img src="./icon.svg" alt="" className="size-7 shrink-0" />
-        {!compact && <span className="type-link-sm max-w-40 truncate">{active.name}</span>}
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-on-accent">
+          <ListVideo className="size-3.5" />
+        </span>
+        {!compact && <span className="max-w-36 truncate text-[13px] font-bold">{active.name}</span>}
         <ChevronDown className={`size-4 shrink-0 text-soft transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div role="menu" className="absolute top-full left-0 z-40 mt-2 flex w-72 animate-pop flex-col gap-1 rounded-lg bg-panel p-2 shadow-float border-2 border-line">
+        <div role="menu" className="absolute top-full right-0 z-40 mt-2 flex w-72 animate-pop flex-col gap-1 rounded-lg bg-panel p-2 shadow-float border-2 border-line">
           <div className="px-3 pt-1.5 pb-2">
             <p className="type-link-sm truncate">{active.name}</p>
             <p className="truncate text-xs text-soft">{[kindLabel(active), info].filter(Boolean).join(" · ")}</p>
