@@ -95,7 +95,7 @@ async function fetchText(req: Request, params: URLSearchParams, signal: AbortSig
   const url = target(params);
   if (!url) return fail("Link inválido", 400);
   try {
-    const { response } = await fetchPublic(url, { headers: upstreamHeaders(params, null), signal }, policy);
+    const { response } = await fetchPublic(url, { headers: upstreamHeaders(params, null), signal, retries: 2 }, policy);
     const body = response.body ? await readCapped(response.body, MAX_TEXT) : new Uint8Array();
     if (!body) return fail("A lista passa de 150 MB", 413);
     return new Response(body, {
@@ -155,7 +155,7 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
       const cached = await vodCache.serve(
         req,
         key,
-        async (signal) => (await fetchPublic(url, { headers: upstreamHeaders(params, null), signal }, policy)).response,
+        async (signal) => (await fetchPublic(url, { headers: upstreamHeaders(params, null), signal, retries: 2 }, policy)).response,
         CORS,
       );
       if (cached) return cached;
@@ -168,7 +168,7 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
   const signal = AbortSignal.any([req.signal, headersTimeout.signal]);
   let upstream: { response: Response; url: URL };
   try {
-    upstream = await fetchPublic(url, { headers: upstreamHeaders(params, req.headers.get("range")), signal }, policy);
+    upstream = await fetchPublic(url, { headers: upstreamHeaders(params, req.headers.get("range")), signal, retries: 2 }, policy);
   } catch (err) {
     return failure(err, url);
   } finally {
