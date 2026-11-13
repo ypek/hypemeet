@@ -22,16 +22,29 @@ export function useIndex(catalog: Catalog) {
 /** A title without the year lists repeat in it ("Quem Ama Cuida (2026) (2026)"): the year goes on its own line. */
 export const titleOf = (name: string) => name.replace(/\s*\((19|20)\d{2}\)/g, "").trim() || name;
 
+type Edges = { start: boolean; end: boolean };
+
+/**
+ * Whether a rail is at its start and its end. The same object back when that didn't change: the rail measures after
+ * every render, and a new object each time made it render again forever (the page never idle, so a search typed on
+ * Início never got its turn to show).
+ */
+export function railEdges(prev: Edges, el: { scrollLeft: number; clientWidth: number; scrollWidth: number }): Edges {
+  const start = el.scrollLeft < 8;
+  const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
+  return prev.start === start && prev.end === end ? prev : { start, end };
+}
+
 /**
  * A horizontal rail. The scroller sits inside the page's margins (cards never slide against the sidebar), fades
  * at its edges, and has arrows to page through it.
  */
 function Rail({ title, icon: Icon, children, loading }: { title: string; icon: typeof Film; children: ReactNode; loading?: boolean }) {
   const scroller = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ start: true, end: false });
+  const [edges, setEdges] = useState<Edges>({ start: true, end: false });
   const measure = () => {
     const el = scroller.current;
-    if (el) setEdges({ start: el.scrollLeft < 8, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 8 });
+    if (el) setEdges((prev) => railEdges(prev, el));
   };
   useEffect(measure);
   const page = (dir: -1 | 1) => scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.85, behavior: "smooth" });
