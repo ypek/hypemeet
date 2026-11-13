@@ -1,5 +1,6 @@
 import { AlertTriangle, ChevronRight, Maximize, Minimize, Pause, PictureInPicture2, Play, RectangleHorizontal, RotateCcw, Shrink, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { isDecoderRefusal, mediaReport } from "../lib/caps";
 import { attach, attemptsFor, type Attached } from "../lib/engine";
 import { describeSrc, insideDiscord, report as reportFailure } from "../lib/net";
 import { loadVolume, saveVolume } from "../lib/storage";
@@ -188,7 +189,8 @@ export function Player({
         setPhase("error");
         setReason(lastReason);
         setDetail(trail.join("\n"));
-        reportFailure({ what: "player", live: play.live, started, discord: insideDiscord(), reason: lastReason, attempts: trail, ua: navigator.userAgent });
+        const failure = { what: "player", live: play.live, started, discord: insideDiscord(), reason: lastReason, attempts: trail, ua: navigator.userAgent };
+        void mediaReport().then((caps) => reportFailure({ ...failure, caps }));
         return;
       }
       // Already playing a film and the connection dropped (a slow link, a long wait after a jump): the same source
@@ -488,7 +490,13 @@ export function Player({
           <div className="flex max-w-sm animate-pop flex-col items-center gap-3">
             <AlertTriangle className="size-9 text-warn" />
             <p className="type-link">{reason}</p>
-            <p className="text-sm text-soft">Pode ser o canal fora do ar, o limite de conexões da sua lista ou um formato que o navegador não abre.</p>
+            <p className="text-sm text-soft">
+              {!isDecoderRefusal(detail)
+                ? "Pode ser o canal fora do ar, o limite de conexões da sua lista ou um formato que o navegador não abre."
+                : insideDiscord()
+                  ? "O vídeo chegou, mas o Discord deste computador recusou decodificar. Desligue a aceleração de hardware do Discord (Configurações › Avançado), reabra o Discord e tente de novo, ou assista pelo navegador."
+                  : "O vídeo chegou, mas este navegador recusou decodificar. Tente desligar a aceleração de hardware dele, ou assista por outro navegador."}
+            </p>
             {detail && <p className="max-w-full whitespace-pre-line break-words font-mono text-[11px] leading-snug text-soft/70">{detail}</p>}
             <Button variant="primary" size="sm" onClick={() => setRetry((n) => n + 1)} className="mt-1">
               <RotateCcw className="size-4" /> Tentar de novo

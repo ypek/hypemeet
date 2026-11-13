@@ -4,6 +4,7 @@
  * the browser and accept the relay, so a link becomes a list of attempts tried in order.
  */
 import type Hls from "hls.js";
+import { isDecoderRefusal } from "./caps";
 import { blockedAsMixed, isOwn, relay } from "./net";
 import type { Playable } from "./types";
 
@@ -152,6 +153,8 @@ function native(video: HTMLVideoElement, src: string, fatal: (reason: string, de
     const code = video.error?.code;
     const detail = `video ${code ?? "?"} ${video.error?.message || ""}`.trim();
     if (code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return fatal("Não deu pra carregar o vídeo", detail);
+    // The file opened and its decoder said no: nothing to ask our server, it's this machine.
+    if (isDecoderRefusal(detail)) return fatal("Este aparelho não conseguiu decodificar o vídeo", detail);
     // The browser says "unsupported source" for an error page too (the list refused it, the server couldn't reach it):
     // ask our server what happened before blaming the format.
     void whyNot(src, probe.signal).then((why) => !probe.signal.aborted && fatal(why ?? "O navegador não abre esse formato", detail));
