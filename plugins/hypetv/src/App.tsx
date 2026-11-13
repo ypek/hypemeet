@@ -414,7 +414,9 @@ export function App() {
           <Tv className="size-6 text-accent-hi" />
         </div>
         <p className="font-display text-lg font-extrabold text-ink">Escolha um canal</p>
-        <p className="max-w-64 text-sm">{inRoom ? "Depois é só passar pra sala: quem estiver com o HypeTv aberto assiste junto." : "Abra pela sala do HypeMeet pra assistir junto com a galera."}</p>
+        <p className="max-w-64 text-sm">
+          {isTv ? "Escolha na lista e aperte OK. Na tela cheia, ↑ ↓ trocam de canal e ← abre a lista." : inRoom ? "Depois é só passar pra sala: quem estiver com o HypeTv aberto assiste junto." : "Abra pela sala do HypeMeet pra assistir junto com a galera."}
+        </p>
       </div>
     </div>
   );
