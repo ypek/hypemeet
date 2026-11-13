@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertPublic, BlockedError, hostAllowed, isPrivateAddress, rewriteHls, upstreamHeaders } from "./proxy";
+import { assertPublic, BlockedError, fetchPublic, hostAllowed, isPrivateAddress, isTransient, rewriteHls, upstreamHeaders } from "./proxy";
 
 test("private, loopback and link-local addresses are refused", () => {
   for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.0.10", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "224.0.0.1"])
@@ -57,4 +57,43 @@ test("upstream headers: player agent by default, the list's own when given, only
   expect(custom.get("user-agent")).toBe("Kodi");
   expect(custom.get("referer")).toBe("https://site.example/");
   expect(custom.get("range")).toBeNull();
+});
+
+test("transient failures: DNS and dropped connections yes; blocks, timeouts and cancels no", () => {
+  expect(isTransient(Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }))).toBe(true);
+  expect(isTransient(Object.assign(new Error("x"), { code: "ConnectionRefused" }))).toBe(true);
+  expect(isTransient(new Error("The socket connection was closed unexpectedly"))).toBe(true);
+  expect(isTransient(new BlockedError("no"))).toBe(false);
+  expect(isTransient(new DOMException("t", "TimeoutError"))).toBe(false);
+  expect(isTransient(new DOMException("a", "AbortError"))).toBe(false);
+  expect(isTransient(new Error("something else"))).toBe(false);
+});
+
+test("fetchPublic: tries the way again after a DNS hiccup, and the error names the hop that failed", async () => {
+  const real = globalThis.fetch;
+  const policy = { allowPrivate: true, hosts: [] };
+  const init = () => ({ headers: new Headers(), signal: new AbortController().signal });
+  let calls = 0;
+  let cdnFails = 1;
+  globalThis.fetch = (async (input: URL | RequestInfo) => {
+    calls++;
+    const url = new URL(String(input));
+    // The panel sends to its CDN; the CDN's name fails the first time.
+    if (url.hostname === "127.0.0.1") return new Response(null, { status: 302, headers: { location: "http://127.0.0.2/film.mp4" } });
+    if (cdnFails-- > 0) throw Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" });
+    return new Response("video", { headers: { "content-type": "video/mp4" } });
+  }) as typeof fetch;
+  try {
+    const { response, url } = await fetchPublic(new URL("http://127.0.0.1/movie/1.mp4"), { ...init(), retries: 2 }, policy);
+    expect(await response.text()).toBe("video");
+    expect(url.hostname).toBe("127.0.0.2");
+    expect(calls).toBe(4);
+    // Without retries: the error comes back at once, naming the CDN.
+    cdnFails = 1;
+    const err = await fetchPublic(new URL("http://127.0.0.1/movie/1.mp4"), init(), policy).catch((e) => e);
+    expect((err as { code?: string }).code).toBe("ENOTFOUND");
+    expect((err as { hostname?: string }).hostname).toBe("127.0.0.2");
+  } finally {
+    globalThis.fetch = real;
+  }
 });

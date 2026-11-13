@@ -69,24 +69,77 @@ export async function assertPublic(url: URL, policy: ProxyPolicy): Promise<void>
   if (!addresses.length || addresses.some(isPrivateAddress)) throw new BlockedError("Endereço fora da internet pública");
 }
 
-/** Like fetch, but follows redirects itself so every hop goes through assertPublic. */
+/**
+ * Network failures worth another try: a name the DNS didn't find for a moment, a connection refused or dropped. The
+ * panels send films to their own CDNs (another host, behind Cloudflare), and those fail like this now and then.
+ */
+export function isTransient(err: unknown): boolean {
+  if (err instanceof BlockedError) return false;
+  const name = (err as Error)?.name;
+  if (name === "AbortError" || name === "TimeoutError") return false;
+  const code = String((err as { code?: string })?.code ?? "");
+  const message = String((err as Error)?.message ?? "");
+  return (
+    /^(ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|ConnectionRefused|ConnectionClosed|FailedToOpenSocket)$/.test(code) ||
+    /ENOTFOUND|EAI_AGAIN|ECONNRESET|socket connection was closed/i.test(message)
+  );
+}
+
+/** Pauses between tries: a DNS hiccup is usually over in about a second. */
+const RETRY_DELAYS_MS = [800, 2000];
+
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => (clearTimeout(timer), reject(signal.reason)), { once: true });
+  });
+
+/**
+ * Like fetch, but follows redirects itself so every hop goes through assertPublic. `retries`: how many more times to
+ * try the whole way again (from the panel, which hands out a new redirect) after a passing network failure.
+ * An error says which hop failed in `hostname` (the panel's CDN, say), for the log.
+ */
 export async function fetchPublic(
   url: URL,
-  init: { headers: Headers; signal: AbortSignal; method?: string },
+  init: { headers: Headers; signal: AbortSignal; method?: string; retries?: number },
   policy: ProxyPolicy,
 ): Promise<{ response: Response; url: URL }> {
   if (!hostAllowed(url.hostname, policy.hosts)) throw new BlockedError("Servidor fora da lista permitida (HYPETV_HOSTS)");
+  const { retries = 0, ...request } = init;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await follow(url, request, policy);
+    } catch (err) {
+      if (attempt >= retries || !isTransient(err) || request.signal.aborted) throw err;
+      await pause(RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]!, request.signal);
+    }
+  }
+}
+
+async function follow(url: URL, init: { headers: Headers; signal: AbortSignal; method?: string }, policy: ProxyPolicy): Promise<{ response: Response; url: URL }> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    await assertPublic(current, policy);
-    const response = await fetch(current, { ...init, redirect: "manual" });
-    const location = response.headers.get("location");
-    if (response.status >= 300 && response.status < 400 && location) {
-      await response.body?.cancel();
-      current = new URL(location, current);
-      continue;
+    try {
+      await assertPublic(current, policy);
+      const response = await fetch(current, { ...init, redirect: "manual" });
+      const location = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && location) {
+        await response.body?.cancel();
+        current = new URL(location, current);
+        continue;
+      }
+      return { response, url: current };
+    } catch (err) {
+      if (err && typeof err === "object" && !(err as { hostname?: string }).hostname) {
+        try {
+          (err as { hostname?: string }).hostname = current.hostname;
+        } catch {
+          // a frozen error: the log just won't say which hop
+        }
+      }
+      throw err;
     }
-    return { response, url: current };
   }
   throw new BlockedError("Redirecionamentos demais");
 }
