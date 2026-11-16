@@ -2,7 +2,7 @@
  * A fake Xtream Codes panel for trying the plugin without a real list (bun run mock → http://localhost:5176,
  * user "demo", password "demo"). Channels, films and series point at public test videos:
  *
- *   /live/demo/demo/<id>.m3u8  → a public HLS test stream
+ *   /live/demo/demo/<id>.m3u8  → HLS like a panel's (login in every link), segments from a public test stream
  *   /live/demo/demo/<id>.ts    → the same stream as continuous MPEG-TS (its segments in a loop), like a panel
  *   /movie|series/demo/demo/<id>.mp4 → a public MP4 (every tenth one: gone, its CDN answers 404)
  *
@@ -123,6 +123,25 @@ async function loadSegments() {
   return out;
 }
 
+/**
+ * A live channel as HLS, the way panels send it: a redirect to a master playlist on the panel, a variant, and a
+ * sliding window of segments, every link carrying the account's login (which a server list must never hand to
+ * the page). The segments redirect to the test stream's.
+ */
+async function hls(path: string[]): Promise<Response> {
+  const [user, pass, id, file, n] = path;
+  const base = `http://localhost:${PORT}/hls/${user}/${pass}/${id}`;
+  const m3u8 = (text: string) => new Response(text, { headers: { "content-type": "application/vnd.apple.mpegurl" } });
+  if (file === "index.m3u8") return m3u8(`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2149280,RESOLUTION=1280x720\n${base}/media.m3u8\n`);
+  const list = await (segments ??= loadSegments());
+  if (file === "seg" && n) return Response.redirect(list[Number.parseInt(n, 10) % list.length]!.url, 302);
+  if (file !== "media.m3u8") return new Response("not found", { status: 404 });
+  const first = Math.floor(Date.now() / 10_000);
+  const lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:11", `#EXT-X-MEDIA-SEQUENCE:${first}`];
+  for (let k = first; k < first + 4; k++) lines.push(`#EXTINF:${list[k % list.length]!.duration.toFixed(3)},`, `seg/${k}.ts`);
+  return m3u8(`${lines.join("\n")}\n`);
+}
+
 function tsLoop(signal: AbortSignal): ReadableStream<Uint8Array> {
   return new ReadableStream({
     async start(controller) {
@@ -152,12 +171,14 @@ const server = Bun.serve({
   fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/player_api.php") return Response.json(api(url.searchParams));
+    const hlsPath = /^\/hls\/(.+)$/.exec(url.pathname)?.[1]?.split("/");
+    if (hlsPath) return hlsPath[0] === USER && hlsPath[1] === PASS ? hls(hlsPath) : new Response("forbidden", { status: 403 });
     if (url.pathname === "/cdn/gone.mp4") return new Response("<!doctype html><html><body>404 Not Found</body></html>", { status: 404, headers: { "content-type": "text/html" } });
     const m = /^\/(live|movie|series)\/([^/]+)\/([^/]+)\/(\d+)\.(\w+)$/.exec(url.pathname);
     if (!m) return new Response("not found", { status: 404 });
     const [, kind, user, pass, id, ext] = m;
     if (user !== USER || pass !== PASS) return new Response("<html>INVALID_CREDENTIALS</html>", { headers: { "content-type": "text/html" } });
-    if (kind === "live" && ext === "m3u8") return Response.redirect(HLS, 302);
+    if (kind === "live" && ext === "m3u8") return Response.redirect(`http://localhost:${PORT}/hls/${user}/${pass}/${id}/index.m3u8`, 302);
     if (kind === "live") return new Response(tsLoop(req.signal), { headers: { "content-type": "video/mp2t" } });
     // Like real panels: every tenth film is listed but gone from the CDN it redirects to.
     if (Number(id) % 10 === 0) return Response.redirect(`http://localhost:${PORT}/cdn/gone.mp4`, 302);

@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { createFanout } from "./fanout";
 import { createVodCache, isVodUrl } from "./vodcache";
 import { catalogKey, createCatalogCache } from "./catalogcache";
+import { createHlsLinks, fromApi } from "./hlslinks";
 import { parseLists, publicLists, scrubLogin, upstreamFor } from "./lists";
 import { BlockedError, fetchPublic, looksLikeHls, rewriteHls, streamErrorReason, upstreamHeaders, type ProxyPolicy } from "./proxy";
 
@@ -140,7 +141,14 @@ function takeSlot(): (() => void) | null {
   };
 }
 
-async function relayStream(req: Request, params: URLSearchParams): Promise<Response> {
+/** How a playlist's links are written for the page; by default, through the relay (stream?u=…). */
+interface HlsOut {
+  link: (absolute: string) => string;
+  /** Last pass over the rewritten playlist (a server list's login cut from anything left). */
+  scrub?: (text: string) => string;
+}
+
+async function relayStream(req: Request, params: URLSearchParams, hlsOut?: HlsOut): Promise<Response> {
   const url = target(params);
   if (!url) return fail("Link inválido", 400);
   // A live channel (the player says so with live=1) is shared: see fanout.ts.
@@ -196,7 +204,8 @@ async function relayStream(req: Request, params: URLSearchParams): Promise<Respo
   if (response.ok && looksLikeHls(type, upstream.url)) {
     const body = response.body ? await readCapped(response.body, MAX_HLS).catch(() => null) : null;
     if (!body) return fail("Playlist HLS inválida", 502);
-    const text = rewriteHls(new TextDecoder().decode(body), upstream.url, (abs) => relayUrl(abs, params));
+    const rewritten = rewriteHls(new TextDecoder().decode(body), upstream.url, hlsOut?.link ?? ((abs) => relayUrl(abs, params)));
+    const text = hlsOut?.scrub ? hlsOut.scrub(rewritten) : rewritten;
     return new Response(text, {
       headers: { ...CORS, "content-type": "application/vnd.apple.mpegurl", "cache-control": "no-store" },
     });
@@ -317,12 +326,25 @@ async function clientReport(req: Request): Promise<Response> {
 async function serverList(req: Request, url: URL): Promise<Response> {
   const m = /^\/api\/x\/(\d+)\/(.+)$/.exec(url.pathname);
   const list = m && serverLists.find((l) => l.id === m[1]);
-  const upstream = m && list ? upstreamFor(serverLists, m[1]!, m[2]!, url.searchParams) : null;
-  if (!list || !upstream) return fail("Não encontrado", 404);
+  if (!list) return fail("Não encontrado", 404);
+  // HLS: the playlist's links as codes under api/x/<id>/hls/ (hlslinks.ts), relative to where this request is.
+  const from = url.pathname.slice("/api/".length);
+  const hlsOut: HlsOut = {
+    link: (absolute) => fromApi(from, `x/${list.id}/hls/${hlsLinks.codeFor(`${list.id}\u0000${absolute}`)}`),
+    scrub: (text) => scrubLogin(text, list),
+  };
+  const code = /^hls\/([\w-]{22})$/.exec(m[2]!)?.[1];
+  if (code) {
+    const [id, panelUrl] = (hlsLinks.urlFor(code) ?? "").split("\u0000");
+    if (id !== list.id || !panelUrl) return fail("Esse canal expirou: abra de novo", 410);
+    return relayStream(req, new URLSearchParams({ u: panelUrl }), hlsOut);
+  }
+  const upstream = upstreamFor(serverLists, list.id, m[2]!, url.searchParams);
+  if (!upstream) return fail("Não encontrado", 404);
   if (upstream.kind === "stream") {
     const params = new URLSearchParams({ u: upstream.url.href });
     if (upstream.live) params.set("live", "1");
-    return relayStream(req, params);
+    return relayStream(req, params, hlsOut);
   }
   const key = catalogKey(list.id, url.searchParams);
   if (key) {
@@ -341,6 +363,9 @@ async function serverList(req: Request, url: URL): Promise<Response> {
   const text = scrubLogin(await res.text(), list);
   return compress(req, new Response(text, { status: res.status, headers: res.headers }));
 }
+
+/** A server list's HLS links, as codes the page can't read a login from (hlslinks.ts). */
+const hlsLinks = createHlsLinks();
 
 /** The server lists' catalogues, ready for everyone: fresh 10 min, answered from the copy (and refreshed) for a day. */
 const catalogs = createCatalogCache({ freshMs: 10 * 60_000, maxAgeMs: 24 * 60 * 60_000 });
