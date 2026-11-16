@@ -74,3 +74,37 @@ test("the upstream closes shortly after the last viewer leaves", async () => {
   expect(up.cancelled()).toBe(true);
   expect(fanout.stats()).toEqual({ channels: 0, viewers: 0 });
 });
+
+test("when the upstream ends, every viewer still on it gets its slot back", async () => {
+  const fanout = createFanout();
+  const up = upstream();
+  let left = 0;
+  const a = fanout.open("ch", up.response, new Headers(), () => left++);
+  const b = fanout.tryJoin("ch", () => left++)!;
+  const [ra, rb] = [a.body!.getReader(), b.body!.getReader()];
+  up.end();
+  expect((await ra.read()).done).toBe(true);
+  expect((await rb.read()).done).toBe(true);
+  expect(left).toBe(2);
+  // A player cancelling afterwards doesn't count twice.
+  await ra.cancel();
+  expect(left).toBe(2);
+});
+
+test("a viewer more than 16 MB behind is dropped, and gets its slot back; the others carry on", async () => {
+  const fanout = createFanout();
+  const up = upstream();
+  let stuckLeft = 0;
+  const reading = fanout.open("ch", up.response, new Headers(), () => {});
+  const stuck = fanout.tryJoin("ch", () => stuckLeft++)!;
+  const reader = reading.body!.getReader();
+  const megabyte = concat(...Array.from({ length: Math.ceil((1024 * 1024) / 188) }, (_, i) => packet(i % 200)));
+  for (let i = 0; i < 18; i++) {
+    up.push(megabyte);
+    await reader.read();
+    await tick();
+  }
+  expect(stuckLeft).toBe(1);
+  expect(fanout.stats()).toEqual({ channels: 1, viewers: 1 });
+  await expect(stuck.body!.getReader().read()).rejects.toThrow("too slow");
+});

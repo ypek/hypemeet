@@ -183,7 +183,8 @@ async function relayStream(req: Request, params: URLSearchParams, hlsOut?: HlsOu
   }
   const headersTimeout = new AbortController();
   const timer = setTimeout(() => headersTimeout.abort(new DOMException("timeout", "TimeoutError")), STREAM_HEADERS_TIMEOUT_MS);
-  const signal = AbortSignal.any([req.signal, headersTimeout.signal]);
+  // A shared live channel outlives the viewer who happened to open it: fanout.ts closes it when the last one leaves.
+  const signal = shared ? headersTimeout.signal : AbortSignal.any([req.signal, headersTimeout.signal]);
   let upstream: { response: Response; url: URL };
   try {
     upstream = await fetchPublic(url, { headers: upstreamHeaders(params, req.headers.get("range")), signal, retries: 2 }, policy);
@@ -193,6 +194,11 @@ async function relayStream(req: Request, params: URLSearchParams, hlsOut?: HlsOu
     clearTimeout(timer);
   }
   const { response } = upstream;
+  // Nobody waiting any more (that shared fetch didn't stop when its viewer left): let the panel's connection go.
+  if (req.signal.aborted) {
+    await response.body?.cancel().catch(() => undefined);
+    return new Response(null, { status: 499, headers: CORS });
+  }
   const type = response.headers.get("content-type");
   // An error page in place of the video (a film the panel lists but its CDN no longer has, say): its reason as JSON,
   // which the player reads (engine.ts whyNot) and shows, instead of the page.

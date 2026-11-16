@@ -27,6 +27,8 @@ export function syncOffset(chunk: Uint8Array): number {
 interface Viewer {
   controller: ReadableStreamDefaultController<Uint8Array>;
   aligned: boolean;
+  /** Off the channel, its slot given back (the relay's onLeave); safe to call more than once. */
+  leave: () => void;
 }
 
 interface Channel {
@@ -52,14 +54,14 @@ export function createFanout() {
     clearTimeout(channel.linger);
     if (channels.get(key) === channel) channels.delete(key);
     void channel.reader.cancel().catch(() => undefined);
-    for (const v of channel.viewers) {
+    for (const v of [...channel.viewers]) {
+      v.leave();
       try {
         v.controller.close();
       } catch {
         // already gone
       }
     }
-    channel.viewers.clear();
   }
 
   function deliver(channel: Channel, chunk: Uint8Array) {
@@ -72,7 +74,7 @@ export function createFanout() {
         data = chunk.subarray(at);
       }
       if ((viewer.controller.desiredSize ?? 0) < -MAX_QUEUED) {
-        channel.viewers.delete(viewer);
+        viewer.leave();
         try {
           viewer.controller.error(new Error("too slow"));
         } catch {
@@ -103,17 +105,18 @@ export function createFanout() {
     const leave = () => {
       if (!channel.viewers.delete(viewer)) return;
       onLeave();
-      if (!channel.viewers.size) channel.linger = setTimeout(() => close(key, channel), LINGER_MS);
+      if (!channel.viewers.size && !channel.closed) channel.linger = setTimeout(() => close(key, channel), LINGER_MS);
     };
     const body = new ReadableStream<Uint8Array>(
       {
         start(controller) {
-          viewer = { controller, aligned: false };
+          viewer = { controller, aligned: false, leave };
           channel.viewers.add(viewer);
         },
         cancel: leave,
       },
-      { highWaterMark: 0 },
+      // Counted in bytes, so desiredSize says how far behind (MAX_QUEUED) a viewer is.
+      { highWaterMark: 0, size: (chunk) => chunk?.byteLength ?? 0 },
     );
     return new Response(body, { status: channel.status, headers: channel.headers });
   }
