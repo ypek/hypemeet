@@ -158,3 +158,12 @@ html.tv [data-player]:focus-visible {
 html.tv .scrollbar-thin {
   scroll-padding-block: 48px;
 }
+
+/* iPhone and iPad (WebKit on iOS only): Safari zooms the whole page into a field under 16px when it gets focus. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

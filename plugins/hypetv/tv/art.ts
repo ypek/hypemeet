@@ -1,7 +1,8 @@
 /**
  * The TV apps' artwork, drawn from public/icon.svg and the HypeTv wordmark:
  * - Android TV: launcher icons (mipmap-*) and the 320×180 banner the TV home shows;
- * - LG webOS: icon (80×80), largeIcon (130×130) and the splash.
+ * - LG webOS: icon (80×80), largeIcon (130×130) and the splash;
+ * - the web app installed on a phone (iPhone "Adicionar à Tela de Início", Android "Instalar app"): public/*.png.
  *
  *   bun tv/art.ts <BricolageGrotesque ExtraBold .ttf>
  *
@@ -96,3 +97,16 @@ out("webos/largeIcon.png", png(icon, 130));
 out("webos/splash.png", png(lockup(1920, 1080, 4), 1920));
 // A preview of the banner, to look at.
 out("out/banner-preview.png", png(lockup(320, 180, 1), 960));
+
+// The web app on a phone's home screen (public/manifest.webmanifest, index.html). iPhone rounds the corners itself
+// and fills transparent ones with black, so its icon is the full square; Android's maskable one keeps the
+// drawing inside the central circle it may cut to.
+const glyph = iconBody.replace(/<rect[^>]*\/>/, "");
+const square = (shrink: number) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="${ACCENT}"/>
+  <g transform="translate(32 33) scale(${shrink}) translate(-32 -33)">${glyph}</g>
+</svg>`;
+out("../public/apple-touch-icon.png", png(square(0.88), 180));
+out("../public/icon-192.png", png(icon, 192));
+out("../public/icon-512.png", png(icon, 512));
+out("../public/icon-maskable-512.png", png(square(0.78), 512));

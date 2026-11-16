@@ -27,6 +27,9 @@ export const createHandle = (): PlayerHandle => ({ video: null, quietUntil: 0, q
 /** No first frame by then: the next attempt (relay, other format) gets its turn. */
 const STALL_MS = 25_000;
 const HIDE_CONTROLS_MS = 2800;
+/** iPhone: no fullscreen for a page element, only the video's own (iOS's player, with its controls). */
+const VIDEO_ONLY_FULLSCREEN =
+  typeof navigator !== "undefined" && /iPhone|iPod/.test(navigator.userAgent) && typeof HTMLVideoElement !== "undefined" && "webkitEnterFullscreen" in HTMLVideoElement.prototype;
 
 type Phase = "idle" | "loading" | "playing" | "error" | "blocked";
 
@@ -355,6 +358,7 @@ export function Player({
     video.current!.muted = false;
   };
   const toggleFullscreen = () => {
+    if (VIDEO_ONLY_FULLSCREEN) return (video.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null)?.webkitEnterFullscreen?.();
     if (document.fullscreenElement) void document.exitFullscreen();
     else void box.current?.requestFullscreen().catch(() => undefined);
   };
@@ -629,7 +633,7 @@ export function Player({
                 <PictureInPicture2 className="size-4" />
               </button>
             )}
-            {document.fullscreenEnabled && (
+            {(document.fullscreenEnabled || VIDEO_ONLY_FULLSCREEN) && (
               <button type="button" onClick={toggleFullscreen} aria-label={fullscreen ? "Sair da tela cheia" : "Tela cheia"} className={control}>
                 {fullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
               </button>

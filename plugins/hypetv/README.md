@@ -84,6 +84,16 @@ Instalar:
   `ares-install -d <tv> com.mihawkdev.hypetv_1.0.0_all.ipk`. A sessão do Modo Desenvolvedor vale 50 horas e pode
   ser renovada no app.
 
+## No celular (iPhone e Android)
+
+O HypeTv instala como app pela própria página (`public/manifest.webmanifest`, ícones gerados por `tv/art.ts`), sem
+loja e sem build: abre em tela cheia, com ícone na tela de início.
+
+- **iPhone**: no **Safari**, abra `https://hypetv.mihawkdev.com`, toque em Compartilhar › **Adicionar à Tela de
+  Início**. Os canais ao vivo tocam pelo mpegts.js com o ManagedMediaSource do Safari (iOS 17.1 ou mais novo); a
+  tela cheia é a do player do iOS. Filmes em `.mkv` o Safari não abre.
+- **Android**: no Chrome, menu ⋮ › **Instalar app** (ou "Adicionar à tela inicial").
+
 ## Variáveis
 
 | Variável | Pra quê |
